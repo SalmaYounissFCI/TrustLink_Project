@@ -1,0 +1,367 @@
+﻿@model SW_Project.ViewModels.Contract.ContractDetailsVM
+@using Microsoft.EntityFrameworkCore
+@using SW_Project.Models
+@{
+    ViewData["Title"] = "Contract Details — TrustLink";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section Styles {
+    <style>
+        /* تخصيصات صفحة تفاصيل العقد */
+        .contract-card {
+            border: none;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+        }
+
+        .contract-header {
+            background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+            .contract-header::before {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background-image: linear-gradient(rgba(201,168,76,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(201,168,76,0.03) 1px, transparent 1px);
+                background-size: 40px 40px;
+                pointer-events: none;
+            }
+
+        .contract-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 1rem;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+        }
+
+        .status-draft {
+            background: rgba(148,163,184,0.15);
+            color: var(--slate);
+        }
+
+        .status-active {
+            background: rgba(74,222,128,0.12);
+            color: #16a34a;
+        }
+
+        .status-pending {
+            background: rgba(251,191,36,0.15);
+            color: #d97706;
+        }
+
+        .status-completed {
+            background: rgba(15,31,61,0.07);
+            color: var(--navy);
+        }
+
+        .info-section {
+            background: var(--ivory);
+            border-radius: var(--radius-md);
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+            .info-row:last-child {
+                border-bottom: none;
+            }
+
+        .info-label {
+            font-weight: 600;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+            .info-label i {
+                color: var(--gold);
+                width: 24px;
+            }
+
+        .info-value {
+            color: var(--text-body);
+            font-weight: 500;
+        }
+
+        .terms-box {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 0.9rem;
+            line-height: 1.8;
+            color: var(--text-body);
+        }
+
+            .terms-box pre {
+                white-space: pre-wrap;
+                font-family: inherit;
+                margin: 0;
+            }
+
+        .signature-status-list {
+            background: var(--ivory);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+        }
+
+        .signature-status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+            .signature-status-item:last-child {
+                border-bottom: none;
+            }
+
+        .signature-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .signature-signed {
+            background: rgba(74,222,128,0.12);
+            color: #16a34a;
+        }
+
+        .signature-pending {
+            background: rgba(148,163,184,0.12);
+            color: var(--slate);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 1.5rem;
+        }
+
+        .btn-sign {
+            background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
+            color: var(--navy);
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            transition: var(--transition);
+        }
+
+            .btn-sign:hover {
+                transform: translateY(-2px);
+                box-shadow: var(--shadow-md);
+                color: var(--navy);
+            }
+
+        .btn-download {
+            background: var(--navy);
+            color: var(--white);
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            transition: var(--transition);
+        }
+
+            .btn-download:hover {
+                background: var(--gold);
+                color: var(--navy);
+                transform: translateY(-2px);
+            }
+
+        .btn-back {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-body);
+            padding: 0.75rem 2rem;
+            border-radius: var(--radius-sm);
+            font-weight: 500;
+            transition: var(--transition);
+        }
+
+            .btn-back:hover {
+                border-color: var(--navy);
+                color: var(--navy);
+            }
+    </style>
+}
+
+<div class="container py-5">
+    <div class="contract-card">
+
+        <!-- Header -->
+        <div class="contract-header">
+            <div style="position: relative; z-index: 2;">
+                <span class="section-eyebrow" style="color: var(--gold-light);">Digital Contract</span>
+                <h1 class="text-white" style="font-family: 'Cormorant Garamond', serif; font-size: 2rem; margin-bottom: 0.5rem;">@Model.Title</h1>
+                <div class="d-flex gap-3 mt-3 flex-wrap">
+                    <span class="contract-status status-@Model.Status.ToLower()">
+                        <i class="bi bi-file-check"></i> @Model.Status
+                    </span>
+                    <span class="text-gold-light">
+                        <i class="bi bi-calendar3"></i> Created: @Model.CreatedAt.ToString("MMMM dd, yyyy")
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Body -->
+        <div class="card-body p-4" style="background: var(--white);">
+
+            <!-- Booking Details -->
+            <div class="info-section">
+                <h5 class="section-eyebrow mb-3">Booking Details</h5>
+                <div class="info-row">
+                    <span class="info-label"><i class="bi bi-box"></i> Item</span>
+                    <span class="info-value">@Model.ListingTitle</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label"><i class="bi bi-geo-alt"></i> Location</span>
+                    <span class="info-value">@Model.ListingLocation</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label"><i class="bi bi-calendar-week"></i> Duration</span>
+                    <span class="info-value">@Model.StartDate.ToString("dd/MM/yyyy") – @Model.EndDate.ToString("dd/MM/yyyy")</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label"><i class="bi bi-calculator"></i> Total Days</span>
+                    <span class="info-value">@((Model.EndDate - Model.StartDate).Days) days</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label"><i class="bi bi-tag"></i> Price per Day</span>
+                    <span class="info-value">@Model.PricePerDay.ToString("C")</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label"><i class="bi bi-cash-stack"></i> Total Price</span>
+                    <span class="info-value fw-bold" style="color: var(--gold);">@Model.TotalPrice.ToString("C")</span>
+                </div>
+                @if (Model.Deposit > 0)
+                {
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-shield"></i> Security Deposit</span>
+                        <span class="info-value">@(Model.Deposit?.ToString("C") ?? "Not specified")</span>
+                    </div>
+                }
+            </div>
+
+            <!-- Parties -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-6">
+                    <div class="info-section" style="margin-bottom: 0;">
+                        <h5 class="section-eyebrow mb-3">Owner</h5>
+                        <div class="info-row">
+                            <span class="info-label"><i class="bi bi-person"></i> Name</span>
+                            <span class="info-value">@Model.PartyAName</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label"><i class="bi bi-envelope"></i> Email</span>
+                            <span class="info-value">@Model.PartyAEmail</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="info-section" style="margin-bottom: 0;">
+                        <h5 class="section-eyebrow mb-3">Renter</h5>
+                        <div class="info-row">
+                            <span class="info-label"><i class="bi bi-person"></i> Name</span>
+                            <span class="info-value">@Model.PartyBName</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label"><i class="bi bi-envelope"></i> Email</span>
+                            <span class="info-value">@Model.PartyBEmail</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Terms & Conditions -->
+            <h5 class="section-eyebrow mt-3 mb-3">Terms & Conditions</h5>
+            <div class="terms-box mb-4">
+                <pre>@Model.Terms</pre>
+            </div>
+
+            <!-- Signature Status -->
+            <h5 class="section-eyebrow mb-3">Signature Status</h5>
+            <div class="signature-status-list">
+                <div class="signature-status-item">
+                    <span><i class="bi bi-person-badge me-2"></i> @Model.PartyAName (Owner)</span>
+                    @if (Model.PartyASigned)
+                    {
+                        <span class="signature-badge signature-signed">
+                            <i class="bi bi-check-circle-fill"></i> Signed
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="signature-badge signature-pending">
+                            <i class="bi bi-clock-history"></i> Pending
+                        </span>
+                    }
+                </div>
+                <div class="signature-status-item">
+                    <span><i class="bi bi-person-badge me-2"></i> @Model.PartyBName (Renter)</span>
+                    @if (Model.PartyBSigned)
+                    {
+                        <span class="signature-badge signature-signed">
+                            <i class="bi bi-check-circle-fill"></i> Signed
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="signature-badge signature-pending">
+                            <i class="bi bi-clock-history"></i> Pending
+                        </span>
+                    }
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                @if (!Model.CurrentUserHasSigned && Model.Status != "Active")
+                {
+                    <a href="/Contracts/Sign/@Model.Id" class="btn-sign">
+                        <i class="bi bi-pen me-2"></i> Sign Contract
+                    </a>
+                }
+
+                @if (!string.IsNullOrEmpty(Model.PdfPath))
+                {
+                    <a href="@Model.PdfPath" class="btn-download" download>
+                        <i class="bi bi-file-pdf me-2"></i> Download PDF
+                    </a>
+                }
+
+                <a href="javascript:history.back()" class="btn-back">
+                    <i class="bi bi-arrow-left me-2"></i> Back
+                </a>
+            </div>
+
+        </div>
+    </div>
+</div>

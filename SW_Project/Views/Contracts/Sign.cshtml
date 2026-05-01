@@ -1,0 +1,302 @@
+﻿@model SW_Project.ViewModels.Contract.ContractSignVM
+@{
+    ViewData["Title"] = "Sign Contract — TrustLink";
+}
+
+<!-- Styles Section -->
+@section Styles {
+    <style>
+        /* تخصيصات صفحة التوقيع */
+        .signature-container {
+            background: var(--white);
+            border: 2px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            transition: var(--transition);
+        }
+
+            .signature-container:focus-within {
+                border-color: var(--gold);
+                box-shadow: 0 0 0 3px rgba(201,168,76,0.1);
+            }
+
+        #signature-pad {
+            width: 100%;
+            height: 250px;
+            touch-action: none;
+            background: var(--white);
+            cursor: crosshair;
+            border-radius: var(--radius-sm);
+        }
+
+        .terms-box {
+            background: var(--ivory);
+            padding: 1.5rem;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+            color: var(--text-body);
+            line-height: 1.8;
+        }
+
+            .terms-box pre {
+                white-space: pre-wrap;
+                font-family: inherit;
+                margin: 0;
+            }
+
+        .card-shadow {
+            box-shadow: var(--shadow-md);
+            border: none;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .bg-navy {
+            background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+        }
+
+        .text-gold-light {
+            color: var(--gold-light);
+        }
+
+        .btn-navy {
+            background: var(--navy);
+            color: var(--white);
+            border: none;
+            padding: 0.5rem 1.2rem;
+            border-radius: var(--radius-sm);
+            font-weight: 500;
+            transition: var(--transition);
+        }
+
+            .btn-navy:hover {
+                background: var(--gold);
+                color: var(--navy);
+                transform: translateY(-2px);
+            }
+
+        .btn-gold-tl {
+            background: var(--gold);
+            color: var(--navy);
+            border: none;
+            padding: 0.85rem;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            transition: var(--transition);
+        }
+
+            .btn-gold-tl:hover:not(:disabled) {
+                background: var(--gold-light);
+                transform: translateY(-2px);
+                box-shadow: var(--shadow-md);
+            }
+
+            .btn-gold-tl:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+
+        .section-eyebrow {
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--gold);
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+
+        .alert-danger {
+            background: #fee2e2;
+            border-left: 4px solid #dc2626;
+            padding: 1rem;
+            border-radius: var(--radius-sm);
+            margin-bottom: 1.5rem;
+        }
+
+        .form-check-input:checked {
+            background-color: var(--gold);
+            border-color: var(--gold);
+        }
+
+        .form-check-input:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 0.2rem rgba(201,168,76,0.25);
+        }
+    </style>
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <!-- Hero Section داخل الصفحة -->
+            <div class="text-center mb-5 fade-in-up">
+                <span class="section-eyebrow">Legal Agreement</span>
+                <h1 class="page-hero-title" style="font-size: 2.5rem;">Sign <em>Contract</em></h1>
+                <p class="page-hero-desc mx-auto" style="max-width: 500px;">
+                    Please review the terms carefully and provide your electronic signature below.
+                </p>
+            </div>
+
+            <!-- بطاقة العقد -->
+            <div class="card-shadow card bg-white-tl">
+                <div class="card-header bg-navy text-white py-3">
+                    <h3 class="mb-0" style="font-family: 'Cormorant Garamond', serif;">@Model.Title</h3>
+                    <small class="text-gold-light">Signing as: <strong>@Model.PartyName</strong> (@Model.PartyRole)</small>
+                </div>
+
+                <div class="card-body p-4">
+
+                    <!-- عرض أخطاء الـ ModelState -->
+                    <div asp-validation-summary="All" class="alert alert-danger"></div>
+
+                    <!-- بنود العقد -->
+                    <h5 class="section-eyebrow mb-3">Contract Terms</h5>
+                    <div class="terms-box">
+                        <pre>@Model.Terms</pre>
+                    </div>
+
+                    <!-- نموذج التوقيع -->
+                    <form method="post" asp-action="Sign">
+                        @Html.AntiForgeryToken()
+
+                        <!-- Hidden fields للـ Model -->
+                        <input type="hidden" asp-for="ContractId" />
+                        <input type="hidden" asp-for="Title" />
+                        <input type="hidden" asp-for="Terms" />
+                        <input type="hidden" asp-for="PartyName" />
+                        <input type="hidden" asp-for="PartyRole" />
+
+                        <!-- الموافقة على الشروط -->
+                        <div class="form-check mb-4">
+                            <input asp-for="AgreeToTerms" class="form-check-input" id="agreeCheck" />
+                            <label asp-for="AgreeToTerms" class="form-check-label text-navy fw-semibold">
+                                I agree to the terms and conditions mentioned above.
+                            </label>
+                        </div>
+
+                        <!-- التوقيع الإلكتروني -->
+                        <h5 class="section-eyebrow mb-2">Electronic Signature</h5>
+                        <p class="text-muted-tl small mb-3">Please draw your signature inside the box below:</p>
+
+                        <div class="signature-container mb-3">
+                            <canvas id="signature-pad"></canvas>
+                        </div>
+
+                        <!-- أزرار التحكم في التوقيع -->
+                        <div class="d-flex gap-2 mb-4">
+                            <button type="button" id="clear-btn" class="btn btn-outline-tl btn-sm">
+                                <i class="bi bi-eraser"></i> Clear
+                            </button>
+                            <button type="button" id="save-btn" class="btn-navy btn-sm">
+                                <i class="bi bi-check2"></i> Confirm Signature
+                            </button>
+                        </div>
+
+                        <!-- حقل التوقيع المخفي (Base64) -->
+                        <input type="hidden" asp-for="SignatureBase64" id="signature-data" />
+
+                        <!-- زر الإرسال النهائي -->
+                        <div class="mt-4">
+                            <button type="submit" id="submit-btn" class="btn-gold-tl w-100 py-2 fw-bold" disabled>
+                                <i class="bi bi-pen me-2"></i> Finalize & Sign Digitally
+                            </button>
+                        </div>
+
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <!-- مكتبة Signature Pad -->
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const canvas = document.getElementById('signature-pad');
+
+            // ✅ ضبط حجم الكانفاس ليكون متجاوباً
+            function resizeCanvas() {
+                const container = canvas.parentElement;
+                const ratio = Math.max(window.devicePixelRatio || 1, 1);
+                canvas.width = container.clientWidth * ratio;
+                canvas.height = 250 * ratio;
+                canvas.getContext("2d").scale(ratio, ratio);
+            }
+
+            window.addEventListener("resize", resizeCanvas);
+            resizeCanvas();
+
+            // ✅ تهيئة Signature Pad
+            const signaturePad = new SignaturePad(canvas, {
+                backgroundColor: 'rgb(255,255,255)',
+                penColor: 'rgb(15,31,61)', // لون Navy
+                minWidth: 1,
+                maxWidth: 2.5
+            });
+
+            const agreeCheck = document.getElementById('agreeCheck');
+            const saveBtn = document.getElementById('save-btn');
+            const submitBtn = document.getElementById('submit-btn');
+            const signatureData = document.getElementById('signature-data');
+            const clearBtn = document.getElementById('clear-btn');
+
+            // ✅ تحديث حالة زر الإرسال
+            function updateSubmitButton() {
+                const isAgreed = agreeCheck.checked;
+                const hasSignature = !signaturePad.isEmpty() && signatureData.value !== "";
+                submitBtn.disabled = !(isAgreed && hasSignature);
+            }
+
+            // ✅ الموافقة على الشروط
+            agreeCheck.addEventListener('change', updateSubmitButton);
+
+            // ✅ مسح التوقيع
+            clearBtn.addEventListener('click', () => {
+                signaturePad.clear();
+                signatureData.value = "";
+                updateSubmitButton();
+
+                // تغيير مظهر زر الحفظ
+                saveBtn.innerHTML = '<i class="bi bi-check2"></i> Confirm Signature';
+                saveBtn.classList.remove('btn-success');
+                saveBtn.classList.add('btn-navy');
+            });
+
+            // ✅ حفظ التوقيع
+            saveBtn.addEventListener('click', () => {
+                if (signaturePad.isEmpty()) {
+                    showToast('Please draw your signature first.', 'bi-exclamation-triangle-fill');
+                    return;
+                }
+
+                const dataUrl = signaturePad.toDataURL('image/png');
+                signatureData.value = dataUrl;
+                updateSubmitButton();
+
+                // تغيير مظهر زر الحفظ للإشارة إلى النجاح
+                saveBtn.innerHTML = '<i class="bi bi-check-all"></i> Signature Captured!';
+                saveBtn.classList.remove('btn-navy');
+                saveBtn.classList.add('btn-success');
+
+                showToast('Signature saved successfully!', 'bi-check-circle-fill');
+            });
+
+            // ✅ منع إرسال النموذج إذا كان التوقيع فارغاً
+            document.querySelector('form').addEventListener('submit', function(e) {
+                if (signaturePad.isEmpty() || signatureData.value === "") {
+                    e.preventDefault();
+                    showToast('Please draw and confirm your signature first.', 'bi-exclamation-triangle-fill');
+                }
+            });
+        });
+    </script>
+}

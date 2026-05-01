@@ -1,9 +1,15 @@
 ﻿@model List<SW_Project.Models.Booking>
+@using Microsoft.EntityFrameworkCore
 @using SW_Project.Models
+
 @{
     ViewData["Title"] = "Received Bookings — TrustLink";
     Layout = null;
+    var contractIds = ViewBag.ContractIds as Dictionary<int, int>
+    ?? new Dictionary<int, int>
+        ();
 }
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -23,6 +29,7 @@
             <a href="/Listings/MyListings" class="nav-link-custom">My Listings</a>
             <a href="/Bookings/MyBookings" class="nav-link-custom">My Bookings</a>
             <a href="/Bookings/ReceivedBookings" class="nav-link-custom">Received Bookings</a>
+            <a href="/Contracts/MyContracts" class="nav-link-custom">My Contracts</a>
             <a href="/Account/Profile" class="nav-link-custom">Profile</a>
             <a href="/Account/Logout" class="nav-link-custom">Logout</a>
         }
@@ -75,6 +82,15 @@
                                             <button type="submit" name="status" value="Accepted" class="btn-primary-tl">Accept</button>
                                             <button type="submit" name="status" value="Rejected" class="btn-outline-tl">Reject</button>
                                         </form>
+                                    }
+                                    @if (booking.Status == "Accepted")
+                                    {
+                                        // البحث عن العقد المرتبط بالحجز ده
+                                        if (contractIds.ContainsKey(booking.Id))
+                                        {
+                                            var contractId = contractIds[booking.Id];
+                                            <a href="/Contracts/Details/@contractId">View Contract</a>
+                                        }
                                     }
                                 </div>
                             </div>

@@ -88,6 +88,14 @@ namespace SW_Project.Controllers
             {
                 ViewBag.FavoritedIds = new List<int>();
             }
+            var today = DateTime.Today;
+            var activeBookingIds = await _context.Bookings
+                .Where(b => (b.Status == "Accepted" || b.Status == "Active") &&
+                            b.StartDate <= today && b.EndDate >= today)
+                .Select(b => b.ListingId)
+                .ToListAsync();
+
+            ViewBag.ActiveBookedIds = activeBookingIds;
 
             return View(listings);
         }
@@ -273,6 +281,15 @@ namespace SW_Project.Controllers
                 return RedirectToAction(nameof(MyListings));
             }
 
+            // ✅ جيب لو فيه حجز نشط
+            var today = DateTime.Today;
+            var hasActiveBooking = await _context.Bookings
+                .AnyAsync(b => b.ListingId == id &&
+                               (b.Status == "Accepted" || b.Status == "Active") &&
+                               b.StartDate <= today && b.EndDate >= today);
+
+            ViewBag.HasActiveBooking = hasActiveBooking;
+
             var viewModel = new ListingCardVM
             {
                 Id = listing.Id,
@@ -302,6 +319,18 @@ namespace SW_Project.Controllers
             if (listing == null)
             {
                 TempData["Error"] = "Listing not found or you don't have permission.";
+                return RedirectToAction(nameof(MyListings));
+            }
+            // ✅ منع الحذف لو فيه حجز نشط
+            var today = DateTime.Today;
+            var hasActiveBooking = await _context.Bookings
+                .AnyAsync(b => b.ListingId == id &&
+                               (b.Status == "Accepted" || b.Status == "Active") &&
+                               b.StartDate <= today && b.EndDate >= today);
+
+            if (hasActiveBooking)
+            {
+                TempData["Error"] = "Cannot delete this listing because it has an active booking. Please wait until the booking period ends.";
                 return RedirectToAction(nameof(MyListings));
             }
 

@@ -374,6 +374,7 @@ namespace SW_Project.Migrations
 
                     b.Property<string>("Terms")
                         .IsRequired()
+                        .HasMaxLength(5000)
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Title")
@@ -861,7 +862,7 @@ namespace SW_Project.Migrations
             modelBuilder.Entity("SW_Project.Models.ContractSignature", b =>
                 {
                     b.HasOne("SW_Project.Models.Contract", "Contract")
-                        .WithMany()
+                        .WithMany("ContractSignatures")
                         .HasForeignKey("ContractId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -999,6 +1000,11 @@ namespace SW_Project.Migrations
             modelBuilder.Entity("SW_Project.Models.ApplicationUser", b =>
                 {
                     b.Navigation("Listings");
+                });
+
+            modelBuilder.Entity("SW_Project.Models.Contract", b =>
+                {
+                    b.Navigation("ContractSignatures");
                 });
 
             modelBuilder.Entity("SW_Project.Models.Conversation", b =>

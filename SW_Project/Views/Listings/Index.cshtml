@@ -31,7 +31,9 @@
             <a href="/Favorites" class="nav-link-custom">Favorites</a>
             <a href="/Bookings/MyBookings" class="nav-link-custom">My Bookings</a>
             <a href="/Bookings/ReceivedBookings" class="nav-link-custom">Received Bookings</a>
+            <a href="/Contracts/MyContracts" class="nav-link-custom">My Contracts</a>
             <a href="/Account/Profile" class="nav-link-custom">Profile</a>
+
             <a href="/Account/Logout" class="nav-link-custom">Logout</a>
         }
         else
@@ -140,6 +142,7 @@
                             {
                                 var firstImage = listing.ListingImages?.FirstOrDefault();
                                 var isFav = favoritedIds.Contains(listing.Id);
+                                var isBooked = ViewBag.ActiveBookedIds != null && ((List<int>)ViewBag.ActiveBookedIds).Contains(listing.Id);
                                 <div class="col-md-6 col-xl-4 listing-col">
                                     <div class="listing-card">
                                         <div class="listing-card-image">
@@ -160,7 +163,15 @@
                                         </div>
                                         <div class="listing-card-body">
                                             <div class="listing-card-title">@listing.Title</div>
-                                            <div class="listing-card-location"><i class="bi bi-geo-alt"></i> @listing.Location</div>
+                                            <div class="listing-card-location">
+                                                <i class="bi bi-geo-alt"></i> @listing.Location
+                                                @if (isBooked)
+                                                {
+                                                    <span style="float: right; background: #e67e22; color: white; padding: 2px 10px; border-radius: 15px; font-size: 0.7rem; font-weight: bold;">
+                                                        🔴 BOOKED
+                                                    </span>
+                                                }
+                                            </div>
                                             <div class="listing-card-footer">
                                                 <div class="listing-card-price">$@listing.PricePerDay / day</div>
                                                 <a href="/Listings/Details/@listing.Id" class="listing-card-btn">View Details</a>

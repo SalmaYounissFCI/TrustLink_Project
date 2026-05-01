@@ -1,0 +1,276 @@
+﻿@model List<SW_Project.ViewModels.Contract.MyContractListItemVM>
+@using SW_Project.ViewModels.Contract
+@{
+    ViewData["Title"] = "My Contracts — TrustLink";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section Styles {
+    <style>
+        .contracts-header {
+            background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+            padding: 4rem 0;
+            text-align: center;
+            color: white;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: var(--white);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            text-align: center;
+            transition: var(--transition);
+            height: 100%;
+            border: 1px solid var(--border);
+        }
+
+            .stat-card:hover {
+                transform: translateY(-5px);
+                box-shadow: var(--shadow-md);
+            }
+
+        .stat-number {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--gold);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        .contract-card {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            transition: var(--transition);
+            height: 100%;
+        }
+
+            .contract-card:hover {
+                transform: translateY(-4px);
+                box-shadow: var(--shadow-md);
+                border-color: rgba(201,168,76,0.25);
+            }
+
+        .contract-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 100px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+        }
+
+        .contract-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--navy);
+            margin-bottom: 0.5rem;
+        }
+
+        .contract-meta {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .contract-price {
+            font-weight: 700;
+            color: var(--gold);
+        }
+
+        .signature-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.7rem;
+        }
+
+        .signature-complete {
+            color: #16a34a;
+        }
+
+        .signature-pending {
+            color: var(--text-muted);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem;
+            background: var(--ivory);
+            border-radius: var(--radius-lg);
+        }
+
+        .btn-view {
+            background: var(--navy);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            transition: var(--transition);
+            text-decoration: none;
+        }
+
+            .btn-view:hover {
+                background: var(--gold);
+                color: var(--navy);
+            }
+
+        .btn-download {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-body);
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            transition: var(--transition);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+            .btn-download:hover {
+                border-color: var(--gold);
+                color: var(--gold);
+            }
+    </style>
+}
+
+<!-- Hero Section -->
+<div class="contracts-header">
+    <div class="container">
+        <span class="page-hero-eyebrow">Legal Agreements</span>
+        <h1 class="page-hero-title">My <em>Contracts</em></h1>
+        <p class="page-hero-desc mx-auto" style="max-width: 500px;">
+            All your digital contracts in one place.
+        </p>
+    </div>
+</div>
+
+<section class="profile-section" style="padding-top: 0;">
+    <div class="container">
+
+        <!-- Stats Cards -->
+        <div class="row g-4 mb-5">
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number">@ViewBag.TotalContracts</div>
+                    <div class="stat-label">Total Contracts</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number">@ViewBag.ActiveContracts</div>
+                    <div class="stat-label">Active</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number">@ViewBag.PendingContracts</div>
+                    <div class="stat-label">Pending</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number">@ViewBag.CompletedContracts</div>
+                    <div class="stat-label">Completed</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contracts List -->
+        @if (!Model.Any())
+        {
+            <div class="empty-state">
+                <i class="bi bi-file-earmark-text" style="font-size: 4rem; color: var(--slate-light);"></i>
+                <h3 class="mt-3">No contracts yet</h3>
+                <p class="text-muted">When you accept a booking, a contract will be created automatically.</p>
+                <a href="/Listings" class="btn-primary-tl mt-3">Browse Listings</a>
+            </div>
+        }
+        else
+        {
+            <div class="row g-4">
+                @foreach (var contract in Model)
+                {
+                    <div class="col-md-6 col-lg-4">
+                        <div class="contract-card">
+                            <!-- Status Badge -->
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <span class="contract-status" style="background: @(contract.StatusColor)15; color: @contract.StatusColor;">
+                                    <i class="bi @contract.StatusIcon"></i> @contract.Status
+                                </span>
+                                <small class="text-muted">@contract.CreatedAt.ToString("MMM dd, yyyy")</small>
+                            </div>
+
+                            <!-- Title -->
+                            <div class="contract-title">@contract.Title</div>
+
+                            <!-- Listing -->
+                            <div class="contract-meta">
+                                <i class="bi bi-box"></i> @contract.ListingTitle
+                            </div>
+                            <div class="contract-meta">
+                                <i class="bi bi-geo-alt"></i> @contract.ListingLocation
+                            </div>
+
+                            <!-- Price -->
+                            <div class="contract-price mt-2 mb-2">
+                                $@contract.TotalPrice
+                            </div>
+
+                            <!-- Other Party -->
+                            <div class="contract-meta">
+                                <i class="bi bi-person"></i>
+                                @contract.OtherPartyName <span class="text-muted">(@contract.OtherPartyRole)</span>
+                            </div>
+
+                            <!-- Signature Status -->
+                            <div class="mt-2">
+                                @if (contract.IsSignedByMe)
+                                {
+                                    <span class="signature-indicator signature-complete">
+                                        <i class="bi bi-check-circle-fill"></i> You signed
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="signature-indicator signature-pending">
+                                        <i class="bi bi-clock-history"></i> Waiting for your signature
+                                    </span>
+                                }
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="mt-3 d-flex gap-2">
+                                <a href="/Contracts/Details/@contract.Id" class="btn-view">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                                @if (!string.IsNullOrEmpty(contract.PdfPath))
+                                {
+                                    <a href="@contract.PdfPath" class="btn-download" download>
+                                        <i class="bi bi-file-pdf"></i> PDF
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+    </div>
+</section>

@@ -71,15 +71,27 @@
                     </div>
                 </div>
                 <div class="card-footer bg-white d-flex justify-content-between">
-                    <form asp-action="Delete" method="post">
-                        <input type="hidden" name="id" value="@Model.Id" />
-                        <button type="submit" class="btn btn-danger">
-                            <i class="bi bi-check-lg"></i> Yes, Delete Listing
-                        </button>
-                        <a asp-action="MyListings" class="btn btn-secondary">
-                            <i class="bi bi-x-lg"></i> Cancel
-                        </a>
-                    </form>
+                    @if (ViewBag.HasActiveBooking == true)
+                    {
+                        <div class="alert alert-danger w-100 mb-0">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <strong>Cannot delete this listing!</strong>
+                            This listing has an active booking and cannot be deleted at this time.
+                            Please wait until the booking period ends.
+                        </div>
+                    }
+                    else
+                    {
+                        <form asp-action="Delete" method="post">
+                            <input type="hidden" name="id" value="@Model.Id" />
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-check-lg"></i> Yes, Delete Listing
+                            </button>
+                            <a asp-action="MyListings" class="btn btn-secondary">
+                                <i class="bi bi-x-lg"></i> Cancel
+                            </a>
+                        </form>
+                    }
                     <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-primary">
                         <i class="bi bi-eye"></i> View Listing
                     </a>

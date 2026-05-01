@@ -1,0 +1,201 @@
+﻿@model SW_Project.Models.Contract
+@using SW_Project.Models
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>@Model.Title - TrustLink Contract</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            padding: 40px;
+            color: #333;
+        }
+
+        h1 {
+            color: #0f1f3d;
+            font-size: 24px;
+        }
+
+        h2 {
+            color: #0f1f3d;
+            font-size: 18px;
+            border-bottom: 1px solid #c9a84c;
+            padding-bottom: 5px;
+            margin-top: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #c9a84c;
+            padding-bottom: 15px;
+        }
+
+        .contract-details {
+            margin-bottom: 20px;
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .row {
+            display: flex;
+            margin-bottom: 10px;
+        }
+
+        .label {
+            font-weight: bold;
+            width: 150px;
+            color: #0f1f3d;
+        }
+
+        .value {
+            flex: 1;
+        }
+
+        .two-columns {
+            display: flex;
+            gap: 30px;
+            margin: 20px 0;
+        }
+
+        .column {
+            flex: 1;
+        }
+
+        .terms-box {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            white-space: pre-wrap;
+            margin: 15px 0;
+        }
+
+        .signatures {
+            margin-top: 40px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .signature-box {
+            width: 45%;
+            text-align: center;
+            border-top: 1px solid #0f1f3d;
+            padding-top: 15px;
+        }
+
+        .signature-image {
+            max-width: 180px;
+            max-height: 60px;
+            margin: 10px 0;
+        }
+
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            font-size: 10px;
+            color: #888;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+        }
+
+        .badge {
+            background: #c9a84c;
+            color: #0f1f3d;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>@Model.Title</h1>
+        <p>Digital Contract · Generated on @DateTime.Now.ToString("MMMM dd, yyyy") at @DateTime.Now.ToString("hh:mm tt")</p>
+    </div>
+
+    <!-- Booking Details -->
+    <h2>Booking Information</h2>
+    <div class="contract-details">
+        <div class="row"><div class="label">Booking ID:</div><div class="value">#@Model.BookingId</div></div>
+        <div class="row"><div class="label">Item:</div><div class="value">@Model.Booking.Listing.Title</div></div>
+        <div class="row"><div class="label">Location:</div><div class="value">@Model.Booking.Listing.Location</div></div>
+        <div class="row"><div class="label">Rental Period:</div><div class="value">@Model.Booking.StartDate.ToString("dddd, MMMM dd, yyyy") – @Model.Booking.EndDate.ToString("dddd, MMMM dd, yyyy")</div></div>
+        <div class="row"><div class="label">Total Days:</div><div class="value">@((Model.Booking.EndDate - Model.Booking.StartDate).Days) days</div></div>
+        <div class="row"><div class="label">Price per Day:</div><div class="value">@Model.Booking.Listing.PricePerDay.ToString("C")</div></div>
+        <div class="row"><div class="label">Total Price:</div><div class="value"><strong>@Model.Booking.TotalPrice.ToString("C")</strong></div></div>
+        @if (Model.Booking.Listing.Deposit > 0)
+        {
+            <div class="row"><div class="label">Security Deposit:</div><div class="value">@Model.Booking.Listing.Deposit.Value.ToString("C")</div></div>
+        }
+    </div>
+
+    <!-- Parties -->
+    <div class="two-columns">
+        <div class="column">
+            <h2>Owner <span class="badge">Party A</span></h2>
+            <div class="row"><div class="label">Name:</div><div class="value">@(Model.Booking.Listing.Owner?.Name ?? "N/A")</div></div>
+            <div class="row"><div class="label">Email:</div><div class="value">@(Model.Booking.Listing.Owner?.Email ?? "N/A")</div></div>
+        </div>
+        <div class="column">
+            <h2>Renter <span class="badge">Party B</span></h2>
+            <div class="row"><div class="label">Name:</div><div class="value">@(Model.Booking.Renter?.Name ?? "N/A")</div></div>
+            <div class="row"><div class="label">Email:</div><div class="value">@(Model.Booking.Renter?.Email ?? "N/A")</div></div>
+        </div>
+    </div>
+
+    <!-- Terms -->
+    <h2>Terms and Conditions</h2>
+    <div class="terms-box">
+        @Html.Raw(Model.Terms?.Replace("\n", "<br />") ?? "No terms specified.")
+    </div>
+
+    <!-- Signatures -->
+    <h2>Signatures</h2>
+    <div class="signatures">
+        <div class="signature-box">
+            <strong>🏛️ Owner Signature</strong><br />
+            @{
+                var ownerSig = Model.ContractSignatures?.FirstOrDefault(s => s.UserId == Model.PartyAId);
+            }
+            @if (ownerSig != null && !string.IsNullOrEmpty(ownerSig.SignatureImage))
+            {
+                <img src="@ownerSig.SignatureImage" class="signature-image" alt="Owner Signature" />
+                <div><small>Signed on @ownerSig.SignedAt.ToString("MMMM dd, yyyy")</small></div>
+            }
+            else
+            {
+                <span>[Not signed yet]</span>
+            }
+        </div>
+        <div class="signature-box">
+            <strong>✍️ Renter Signature</strong><br />
+            @{
+                var renterSig = Model.ContractSignatures?.FirstOrDefault(s => s.UserId == Model.PartyBId);
+            }
+            @if (renterSig != null && !string.IsNullOrEmpty(renterSig.SignatureImage))
+            {
+                <img src="@renterSig.SignatureImage" class="signature-image" alt="Renter Signature" />
+                <div><small>Signed on @renterSig.SignedAt.ToString("MMMM dd, yyyy")</small></div>
+            }
+            else
+            {
+                <span>[Not signed yet]</span>
+            }
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>This is a legally binding electronic contract generated by TrustLink.</p>
+        <p>TrustLink · Smart Resource Sharing & Digital Contract Platform</p>
+        <p>© @DateTime.Now.Year TrustLink. All rights reserved.</p>
+    </div>
+
+</body>
+</html>

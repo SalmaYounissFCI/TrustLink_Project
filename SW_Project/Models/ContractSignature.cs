@@ -6,20 +6,23 @@ namespace SW_Project.Models
     public class ContractSignature
     {
         [Key]
-        public int Id { get; set; } 
+        public int Id { get; set; }
 
-        [Required]
-        public int ContractId { get; set; } 
+        [Required(ErrorMessage = "Contract ID is required.")]
+        public int ContractId { get; set; }
 
         [ForeignKey("ContractId")]
-        public Contract Contract { get; set; } 
+        public Contract Contract { get; set; }
 
-        [Required]
+        [Required(ErrorMessage = "User ID is required.")]
         public string UserId { get; set; }
 
-        [Required]
-        public string SignatureImage { get; set; } 
+        [Required(ErrorMessage = "Signature image is required.")]
+        [Display(Name = "Signature")]
+        public string SignatureImage { get; set; }
 
-        public DateTime SignedAt { get; set; } = DateTime.Now; 
+        [Display(Name = "Signed On")]
+        [DisplayFormat(DataFormatString = "{0:MMMM dd, yyyy hh:mm tt}")]
+        public DateTime SignedAt { get; set; } = DateTime.Now;
     }
 }

@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using SW_Project.Data;
 using SW_Project.Models;
+using Rotativa.AspNetCore;
 
 namespace SW_Project
 {
@@ -15,6 +16,8 @@ namespace SW_Project
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+            builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpSettings"));
+            builder.Services.AddTransient<IEmailSender, EmailSender>();
             // Identity with custom settings
             builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
             {
@@ -43,6 +46,7 @@ namespace SW_Project
             builder.Services.AddControllersWithViews();
 
             var app = builder.Build();
+            RotativaConfiguration.Setup(app.Environment.WebRootPath, "Rotativa");
 
             // Apply migrations and seed data
             using (var scope = app.Services.CreateScope())
@@ -170,7 +174,10 @@ namespace SW_Project
                 name: "default",
                 pattern: "{controller=Home}/{action=Index}/{id?}");
 
+            app.UseRouting();
             await app.RunAsync();
         }
+
     }
+
 }
