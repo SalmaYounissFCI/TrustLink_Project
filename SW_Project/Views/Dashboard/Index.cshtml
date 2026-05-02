@@ -130,6 +130,45 @@
                 }
             </div>
         </div>
+        <!-- Recent Reviews Section -->
+        <div class="row g-4 mt-4">
+            <div class="col-12">
+                <div class="dash-panel">
+                    <div class="dash-panel-header d-flex justify-content-between align-items-center">
+                        <div class="dash-panel-title">Recent Reviews</div>
+                        <a href="/Reviews" class="dash-panel-action">View All <i class="bi bi-arrow-right"></i></a>
+                    </div>
+                    @if (Model.RecentReviews != null && Model.RecentReviews.Any())
+                    {
+                        <div style="padding: 0.5rem 1rem;">
+                            @foreach (var review in Model.RecentReviews)
+                            {
+                                <div class="d-flex justify-content-between align-items-center py-3 border-bottom">
+                                    <div>
+                                        <div class="fw-semibold">@review.ListingTitle</div>
+                                        <div class="small text-muted">
+                                            <i class="bi bi-star-fill text-warning"></i> @review.Rating/5
+                                        </div>
+                                        <div class="small">"@(review.Comment?.Length > 60 ? review.Comment.Substring(0, 60) + "..." : review.Comment)"</div>
+                                        <div class="small text-muted">To: @review.RevieweeName · @review.CreatedAt.ToString("MMM dd, yyyy")</div>
+                                    </div>
+                                    <a href="/Reviews" class="btn-outline-tl btn-sm">View</a>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="dash-empty-state" style="padding: 2rem;">
+                            <div class="dash-empty-icon"><i class="bi bi-star"></i></div>
+                            <div class="dash-empty-title">No reviews yet</div>
+                            <p class="dash-empty-desc">After completing a booking, you can leave a review.</p>
+                            <a href="/Listings" class="btn-dash-primary">Browse Listings</a>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

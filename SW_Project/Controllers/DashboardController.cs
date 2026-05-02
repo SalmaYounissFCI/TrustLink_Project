@@ -56,7 +56,6 @@ namespace SW_Project.Controllers
                 })
                 .ToListAsync();
 
-            // ✅ استخدم RecentContractDTO من الـ ViewModel
             var recentContracts = await _context.Contracts
                 .Include(c => c.Booking)
                     .ThenInclude(b => b.Listing)
@@ -86,8 +85,53 @@ namespace SW_Project.Controllers
                 RecentBookings = recentBookings ?? new List<RecentBookingDTO>(),
                 RecentContracts = recentContracts ?? new List<RecentContractDTO>()
             };
+            //  جلب آخر 5 تقييمات كتبها المستخدم
+            var recentReviews = await _context.Reviews
+                .Include(r => r.Booking)
+                    .ThenInclude(b => b.Listing)
+                .Include(r => r.Reviewee)
+                .Where(r => r.ReviewerId == userId)
+                .OrderByDescending(r => r.CreatedAt)
+                .Take(5)
+                .Select(r => new RecentReviewDTO
+                {
+                    Id = r.Id,
+                    ListingTitle = r.Booking.Listing.Title,
+                    ReviewerName = r.Reviewer.Name ?? "You",
+                    RevieweeName = r.Reviewee.Name ?? "User",
+                    Rating = r.Rating,
+                    Comment = r.Comment,
+                    CreatedAt = r.CreatedAt,
+                    Role = "Given"
+                })
+                .ToListAsync();
+
+            //مان جيب آخر 5 تقييمات استقبلها المستخدم )
+            var recentReceivedReviews = await _context.Reviews
+                .Include(r => r.Booking)
+                    .ThenInclude(b => b.Listing)
+                .Include(r => r.Reviewer)
+                .Where(r => r.RevieweeId == userId)
+                .OrderByDescending(r => r.CreatedAt)
+                .Take(3)
+                .Select(r => new RecentReviewDTO
+                {
+                    Id = r.Id,
+                    ListingTitle = r.Booking.Listing.Title,
+                    ReviewerName = r.Reviewer.Name ?? "Someone",
+                    RevieweeName = r.Reviewee.Name ?? "You",
+                    Rating = r.Rating,
+                    Comment = r.Comment,
+                    CreatedAt = r.CreatedAt,
+                    Role = "Received"
+                })
+                .ToListAsync();
+
+            viewModel.RecentReviews = recentReviews;
 
             return View(viewModel);
+
         }
+
     }
 }

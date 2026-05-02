@@ -1,15 +1,10 @@
 ﻿@model List<SW_Project.Models.Booking>
-@using Microsoft.EntityFrameworkCore
 @using SW_Project.Models
-
 @{
     ViewData["Title"] = "Received Bookings — TrustLink";
     Layout = null;
-    var contractIds = ViewBag.ContractIds as Dictionary<int, int>
-    ?? new Dictionary<int, int>
-        ();
+    var contractIds = ViewBag.ContractIds as Dictionary<int, int> ?? new Dictionary<int, int>();
 }
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -67,30 +62,41 @@
                     {
                         <div class="col-md-6 col-lg-4">
                             <div class="profile-card">
-                                <div class="profile-header" style="padding: 1rem;">
-                                    <h3>@booking.Listing.Title</h3>
-                                    <p>Renter: @booking.Renter.Name</p>
+                                <div class="profile-header" style="padding: 1.25rem;">
+                                    <h3 class="mb-2">@booking.Listing.Title</h3>
+                                    <p class="mb-0 text-muted">
+                                        <i class="bi bi-person"></i> Renter: @booking.Renter?.Name
+                                    </p>
                                 </div>
                                 <div class="profile-body">
                                     <p><i class="bi bi-calendar-week"></i> @booking.StartDate.ToString("MMM dd") - @booking.EndDate.ToString("MMM dd, yyyy")</p>
                                     <p><strong>Total:</strong> $@booking.TotalPrice</p>
-                                    <p><strong>Status:</strong> @booking.Status</p>
+                                    <p>
+                                        <span class="badge" style="background: @(booking.Status == "Pending" ? "#f39c12" : booking.Status == "Accepted" ? "#2ecc71" : "#e74c3c"); color:white;">
+                                            @booking.Status
+                                        </span>
+                                    </p>
+
                                     @if (booking.Status == "Pending")
                                     {
-                                        <form method="post" asp-action="UpdateStatus" asp-controller="Bookings" class="d-flex gap-2 mt-2">
+                                        <form method="post" asp-action="UpdateStatus" asp-controller="Bookings" class="d-flex gap-2 mt-3">
                                             <input type="hidden" name="id" value="@booking.Id" />
-                                            <button type="submit" name="status" value="Accepted" class="btn-primary-tl">Accept</button>
-                                            <button type="submit" name="status" value="Rejected" class="btn-outline-tl">Reject</button>
+                                            <button type="submit" name="status" value="Accepted" class="btn-primary-tl btn-sm">
+                                                <i class="bi bi-check-lg"></i> Accept
+                                            </button>
+                                            <button type="submit" name="status" value="Rejected" class="btn-outline-tl btn-sm">
+                                                <i class="bi bi-x-lg"></i> Reject
+                                            </button>
                                         </form>
                                     }
-                                    @if (booking.Status == "Accepted")
+
+                                    @if (booking.Status == "Accepted" && contractIds.ContainsKey(booking.Id))
                                     {
-                                        // البحث عن العقد المرتبط بالحجز ده
-                                        if (contractIds.ContainsKey(booking.Id))
-                                        {
-                                            var contractId = contractIds[booking.Id];
-                                            <a href="/Contracts/Details/@contractId">View Contract</a>
-                                        }
+                                        <div class="mt-3">
+                                            <a href="/Contracts/Details/@contractIds[booking.Id]" class="btn-outline-tl btn-sm w-100">
+                                                <i class="bi bi-file-text"></i> View Contract
+                                            </a>
+                                        </div>
                                     }
                                 </div>
                             </div>

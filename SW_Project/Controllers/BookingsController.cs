@@ -5,12 +5,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.SqlServer.Server;
 using SW_Project.Data;
 using SW_Project.Models;
+using SW_Project.ViewModels.Booking;
 using System;
 using System.Linq;
 using System.Runtime.ConstrainedExecution;
 using System.Security.Cryptography.Xml;
 using System.Threading.Tasks;
 using static System.Net.Mime.MediaTypeNames;
+
 
 namespace SW_Project.Controllers
 {
@@ -29,16 +31,36 @@ namespace SW_Project.Controllers
         public async Task<IActionResult> MyBookings()
         {
             var userId = _userManager.GetUserId(User);
+            var today = DateTime.Today;
+
             var bookings = await _context.Bookings
                 .Include(b => b.Listing)
-                .ThenInclude(l => l.Category)
-                .Include(b => b.Listing.ListingImages)
                 .Where(b => b.RenterId == userId)
                 .OrderByDescending(b => b.CreatedAt)
                 .ToListAsync();
-            return View(bookings);
-        }
 
+            // جلب التقييمات اللي عملها المستخدم
+            var userReviews = await _context.Reviews
+                .Where(r => r.ReviewerId == userId)
+                .ToDictionaryAsync(r => r.BookingId, r => true);
+
+            var viewModel = bookings.Select(b => new MyBookingVM
+            {
+                Id = b.Id,
+                ListingTitle = b.Listing.Title,
+                StartDate = b.StartDate,
+                EndDate = b.EndDate,
+                TotalPrice = b.TotalPrice,
+                Status = b.Status,
+                ListingId = b.ListingId,
+                RenterId = b.RenterId,
+                OwnerId = b.Listing.OwnerId,
+                HasReviewed = userReviews.ContainsKey(b.Id)
+            }).ToList();
+
+            ViewBag.UserId = userId;
+            return View(viewModel);
+        }
         public async Task<IActionResult> ReceivedBookings()
         {
             var userId = _userManager.GetUserId(User);
@@ -257,6 +279,32 @@ namespace SW_Project.Controllers
 
             
 
+        }
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Complete(int id)
+        {
+            var booking = await _context.Bookings
+                .Include(b => b.Listing)
+                .FirstOrDefaultAsync(b => b.Id == id);
+
+            if (booking == null) return NotFound();
+
+            var userId = _userManager.GetUserId(User);
+            if (booking.RenterId != userId && booking.Listing.OwnerId != userId)
+                return Forbid();
+
+            if (booking.Status != "Accepted" && booking.Status != "Active")
+            {
+                TempData["Error"] = "Only accepted or active bookings can be completed.";
+                return RedirectToAction("MyBookings");
+            }
+
+            booking.Status = "Completed";
+            await _context.SaveChangesAsync();
+
+            TempData["Success"] = "Booking marked as completed. You can now leave a review.";
+            return RedirectToAction("MyBookings");
         }
     }
 }

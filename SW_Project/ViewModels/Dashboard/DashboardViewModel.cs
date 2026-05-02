@@ -12,6 +12,8 @@ namespace SW_Project.ViewModels.Dashboard
 
         public List<RecentBookingDTO> RecentBookings { get; set; }
         public List<RecentContractDTO> RecentContracts { get; set; }
+        public List<RecentReviewDTO> RecentReviews { get; set; }
+
     }
 
     public class RecentBookingDTO
@@ -31,5 +33,16 @@ namespace SW_Project.ViewModels.Dashboard
         public System.DateTime CreatedAt { get; set; }
         public string Status { get; set; }
         public string OtherPartyName { get; set; }
+    }
+    public class RecentReviewDTO
+    {
+        public int Id { get; set; }
+        public string ListingTitle { get; set; }
+        public string ReviewerName { get; set; }
+        public string RevieweeName { get; set; }
+        public byte Rating { get; set; }
+        public string Comment { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public string Role { get; set; } // "Given" or "Received"
     }
 }
