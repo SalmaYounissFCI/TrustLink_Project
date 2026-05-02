@@ -1,0 +1,130 @@
+﻿@model SW_Project.Models.Review
+@{
+    ViewData["Title"] = "Write a Review — TrustLink";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var booking = ViewBag.Booking as SW_Project.Models.Booking;
+}
+<input type="hidden" asp-for="BookingId" />
+<input type="hidden" asp-for="RevieweeId" value="@ViewBag.RevieweeId" />
+
+@section Styles {
+    <style>
+        .rating-stars i {
+            color: var(--gold);
+            font-size: 2rem;
+            cursor: pointer;
+            margin-right: 0.2rem;
+            transition: var(--transition);
+        }
+
+            .rating-stars i.bi-star {
+                color: var(--slate-light);
+            }
+
+                .rating-stars i.active,
+                .rating-stars i:hover {
+                    color: var(--gold);
+                }
+
+        .review-card {
+            max-width: 700px;
+            margin: 0 auto;
+            background: var(--white);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+            overflow: hidden;
+        }
+
+        .booking-info {
+            background: var(--ivory);
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+    </style>
+}
+
+<div class="container py-5">
+    <div class="review-card">
+        <div class="booking-info">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-0">@booking?.Listing?.Title</h4>
+                    <p class="text-muted small mb-0">
+                        <i class="bi bi-calendar3"></i> @booking?.StartDate.ToString("dd/MM/yyyy") - @booking?.EndDate.ToString("dd/MM/yyyy")
+                    </p>
+                </div>
+                <span class="badge" style="background: #2ecc71;">Completed</span>
+            </div>
+        </div>
+
+        <div class="p-4">
+            <h3 class="text-center mb-4">Share Your Experience</h3>
+            <p class="text-muted text-center mb-4">How was your experience with <strong>@ViewBag.RevieweeName</strong>?</p>
+
+            <form method="post">
+                @Html.AntiForgeryToken()
+                <div asp-validation-summary="All" class="alert alert-danger"></div>
+
+                <input type="hidden" asp-for="BookingId" />
+                <input type="hidden" asp-for="RevieweeId" value="@ViewBag.RevieweeId" />
+
+                <div class="text-center mb-4">
+                    <label class="form-label fw-semibold mb-2">Your Rating *</label>
+                    <div class="rating-stars" id="ratingStars">
+                        <i class="bi bi-star" data-value="1"></i>
+                        <i class="bi bi-star" data-value="2"></i>
+                        <i class="bi bi-star" data-value="3"></i>
+                        <i class="bi bi-star" data-value="4"></i>
+                        <i class="bi bi-star" data-value="5"></i>
+                    </div>
+                    <input type="hidden" asp-for="Rating" id="RatingValue" required />
+                </div>
+
+                <div class="mb-4">
+                    <label asp-for="Comment" class="form-label fw-semibold">Your Review</label>
+                    <textarea asp-for="Comment" rows="5" class="form-control"
+                              placeholder="What was your experience? (Max 500 characters)"></textarea>
+                    <span asp-validation-for="Comment" class="text-danger"></span>
+                </div>
+
+                <div class="text-center">
+                    <button type="submit" class="btn-primary-tl px-5">
+                        <i class="bi bi-send"></i> Submit Review
+                    </button>
+                    <a href="/Bookings/MyBookings" class="btn-outline-tl ms-2">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const stars = document.querySelectorAll('#ratingStars i');
+        const ratingInput = document.getElementById('RatingValue');
+
+        function updateStars(value) {
+            stars.forEach((star, idx) => {
+                if (idx < value) {
+                    star.classList.remove('bi-star');
+                    star.classList.add('bi-star-fill');
+                } else {
+                    star.classList.remove('bi-star-fill');
+                    star.classList.add('bi-star');
+                }
+            });
+        }
+
+        stars.forEach(star => {
+            star.addEventListener('click', function() {
+                const value = parseInt(this.dataset.value);
+                ratingInput.value = value;
+                updateStars(value);
+            });
+        });
+
+        if (ratingInput.value) {
+            updateStars(parseInt(ratingInput.value));
+        }
+    </script>
+}

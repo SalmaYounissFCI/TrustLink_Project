@@ -1,0 +1,135 @@
+﻿@using SW_Project.Models
+@{
+    ViewData["Title"] = "My Reviews — TrustLink";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var givenReviews = ViewBag.GivenReviews as List<Review> ?? new List<Review>();
+    var receivedReviews = ViewBag.ReceivedReviews as List<Review> ?? new List<Review>();
+}
+
+@section Styles {
+    <style>
+        .review-card {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            transition: var(--transition);
+        }
+
+            .review-card:hover {
+                box-shadow: var(--shadow-sm);
+            }
+
+        .stars {
+            color: var(--gold);
+            font-size: 0.85rem;
+        }
+
+        .review-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+    </style>
+}
+
+<div class="container py-5">
+    <div class="text-center mb-4">
+        <h1 class="page-hero-title">My <em>Reviews</em></h1>
+        <p class="page-hero-desc mx-auto" style="max-width: 500px;">
+            Reviews you've written and reviews you've received
+        </p>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-pencil-square fs-4" style="color: var(--gold);"></i>
+                <h3 class="mb-0">Reviews I've Written</h3>
+            </div>
+            @if (!givenReviews.Any())
+            {
+                <div class="text-center py-5 bg-light rounded">
+                    <i class="bi bi-star text-muted" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0">You haven't written any reviews yet.</p>
+                </div>
+            }
+            else
+            {
+                @foreach (var review in givenReviews)
+                {
+                    <div class="review-card">
+                        <div class="review-header">
+                            <div>
+                                <strong>@review.Booking?.Listing?.Title</strong>
+                                <span class="text-muted small ms-2">(@review.CreatedAt.ToString("MMM dd, yyyy"))</span>
+                            </div>
+                            <div class="stars">
+                                @for (int i = 1; i <= 5; i++)
+                                {
+                                    if (i <= review.Rating)
+                                    {
+                                        <i class="bi bi-star-fill"></i>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-star"></i>
+                                    }
+                                }
+                            </div>
+                        </div>
+                        <p class="mb-2">@review.Comment</p>
+                        <small class="text-muted">To: @review.Reviewee?.Name</small>
+                    </div>
+                }
+            }
+        </div>
+
+        <div class="col-md-6">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-person-check fs-4" style="color: var(--gold);"></i>
+                <h3 class="mb-0">Reviews I've Received</h3>
+            </div>
+            @if (!receivedReviews.Any())
+            {
+                <div class="text-center py-5 bg-light rounded">
+                    <i class="bi bi-star text-muted" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0">You haven't received any reviews yet.</p>
+                </div>
+            }
+            else
+            {
+                @foreach (var review in receivedReviews)
+                {
+                    <div class="review-card">
+                        <div class="review-header">
+                            <div>
+                                <strong>@review.Booking?.Listing?.Title</strong>
+                                <span class="text-muted small ms-2">(@review.CreatedAt.ToString("MMM dd, yyyy"))</span>
+                            </div>
+                            <div class="stars">
+                                @for (int i = 1; i <= 5; i++)
+                                {
+                                    if (i <= review.Rating)
+                                    {
+                                        <i class="bi bi-star-fill"></i>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-star"></i>
+                                    }
+                                }
+                            </div>
+                        </div>
+                        <p class="mb-2">@review.Comment</p>
+                        <small class="text-muted">From: @review.Reviewer?.Name</small>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
