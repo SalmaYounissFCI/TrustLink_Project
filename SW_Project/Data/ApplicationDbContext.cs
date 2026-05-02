@@ -61,7 +61,26 @@ namespace SW_Project.Data
             builder.Entity<Message>()
                 .HasOne(m => m.Conversation)
                 .WithMany(c => c.Messages)
-                .OnDelete(DeleteBehavior.Cascade);  // ده مسموح لأن Conversation لما يتشال، رسايله تتشال
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ========== علاقات جدول Reports (جديد) ==========
+            builder.Entity<Report>()
+                .HasOne(r => r.ReporterUser)
+                .WithMany()
+                .HasForeignKey(r => r.ReporterUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<Report>()
+                .HasOne(r => r.ReportedUser)
+                .WithMany()
+                .HasForeignKey(r => r.ReportedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<Report>()
+                .HasOne(r => r.ReportedListing)
+                .WithMany()
+                .HasForeignKey(r => r.ReportedListingId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }
