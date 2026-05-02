@@ -55,6 +55,7 @@ namespace SW_Project
                 dbContext.Database.Migrate();
 
                 var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
                 // == 1. إضافة التصنيفات إذا لم توجد ==
                 if (!dbContext.Categories.Any())
@@ -156,6 +157,20 @@ namespace SW_Project
                         Console.WriteLine($"{listings.Count} demo listings added.");
                     }
                 }
+
+                // == 4. إنشاء دور Admin إذا لم يوجد ==
+                if (!await roleManager.RoleExistsAsync("Admin"))
+                {
+                    await roleManager.CreateAsync(new IdentityRole("Admin"));
+                    Console.WriteLine("Admin role created.");
+                }
+
+                // == 5. تعيين المستخدم owner@trustlink.com كـ Admin ==
+                if (demoOwner != null && !await userManager.IsInRoleAsync(demoOwner, "Admin"))
+                {
+                    await userManager.AddToRoleAsync(demoOwner, "Admin");
+                    Console.WriteLine("Admin role assigned to owner@trustlink.com");
+                }
             }
 
             if (!app.Environment.IsDevelopment())
@@ -177,7 +192,5 @@ namespace SW_Project
             app.UseRouting();
             await app.RunAsync();
         }
-
     }
-
 }
