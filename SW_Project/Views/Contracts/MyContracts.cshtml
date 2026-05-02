@@ -210,12 +210,16 @@
                         <div class="contract-card">
                             <!-- Status Badge -->
                             <div class="d-flex justify-content-between align-items-start mb-3">
-                                <span class="contract-status" style="background: @(contract.StatusColor)15; color: @contract.StatusColor;">
-                                    <i class="bi @contract.StatusIcon"></i> @contract.Status
+                                @{
+                                    var statusColor = contract.Status == "Expired" ? "#95a5a6" :
+                                    contract.Status == "Active" ? "#2ecc71" :
+                                    contract.Status == "Draft" ? "#f39c12" : "#3498db";
+                                }
+                                <span class="badge" style="background: @statusColor; color:white;">
+                                    @contract.Status
                                 </span>
                                 <small class="text-muted">@contract.CreatedAt.ToString("MMM dd, yyyy")</small>
                             </div>
-
                             <!-- Title -->
                             <div class="contract-title">@contract.Title</div>
 

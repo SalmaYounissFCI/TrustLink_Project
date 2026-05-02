@@ -1,8 +1,9 @@
-﻿@model List<SW_Project.Models.Booking>
-@using SW_Project.Models
+﻿@model List<SW_Project.ViewModels.Booking.MyBookingVM>
+@using SW_Project.ViewModels.Booking
 @{
     ViewData["Title"] = "My Bookings — TrustLink";
     Layout = null;
+    var userId = ViewBag.UserId as string;
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -16,7 +17,6 @@
 </head>
 <body>
 
-    <
     <div class="d-flex gap-3 align-items-center">
         @if (User?.Identity?.IsAuthenticated == true)
         {
@@ -61,19 +61,50 @@
                 <div class="row g-4">
                     @foreach (var booking in Model)
                     {
+                        var revieweeId = booking.RenterId == userId ? booking.OwnerId : booking.RenterId;
+
                         <div class="col-md-6 col-lg-4">
                             <div class="profile-card">
                                 <div class="profile-header" style="padding: 1rem;">
                                     <div class="profile-avatar" style="width: 60px; height: 60px; font-size: 1.5rem;">
-                                        @(booking.Listing.Title.Substring(0, 1).ToUpper())
+                                        @(booking.ListingTitle.Substring(0, 1).ToUpper())
                                     </div>
-                                    <h3 style="font-size: 1.1rem;" class="mt-2">@booking.Listing.Title</h3>
+                                    <h3 style="font-size: 1.1rem;" class="mt-2">@booking.ListingTitle</h3>
                                 </div>
                                 <div class="profile-body">
                                     <p><i class="bi bi-calendar-week"></i> @booking.StartDate.ToString("MMM dd") - @booking.EndDate.ToString("MMM dd, yyyy")</p>
                                     <p><strong>Total:</strong> $@booking.TotalPrice</p>
-                                    <p><span class="badge" style="background: @(booking.Status == "Pending" ? "#f39c12" : booking.Status == "Accepted" ? "#2ecc71" : "#e74c3c"); color:white;">@booking.Status</span></p>
-                                    <a href="/Listings/Details/@booking.ListingId" class="listing-card-btn">View Listing</a>
+                                    <p>
+                                        <span class="badge" style="background: @booking.StatusColor; color:white;">
+                                            @booking.DisplayStatus
+                                        </span>
+                                    </p>
+
+                                   @{
+    var isEffectivelyCompleted = booking.Status == "Completed" || booking.IsExpired;
+}
+
+                                    <a href="/Listings/Details/@booking.ListingId" class="listing-card-btn d-block text-center mb-2">View Listing</a>
+
+                                    @if (booking.IsActive && booking.Status != "Completed")
+                                    {
+                                        <form method="post" asp-action="Complete" asp-controller="Bookings" class="mt-2">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@booking.Id" />
+                                            <button type="submit" class="btn-outline-tl btn-sm w-100">
+                                                <i class="bi bi-check2-circle"></i> Mark as Completed
+                                            </button>
+                                        </form>
+                                    }
+
+                                    @if (isEffectivelyCompleted && !booking.HasReviewed)
+                                    {
+                                        <div class="mt-2">
+                                            <a href="/Reviews/Create?bookingId=@booking.Id&revieweeId=@revieweeId" class="btn-primary-tl btn-sm w-100">
+                                                <i class="bi bi-star"></i> Write Review
+                                            </a>
+                                        </div>
+                                    }
                                 </div>
                             </div>
                         </div>

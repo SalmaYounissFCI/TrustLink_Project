@@ -251,7 +251,26 @@ namespace SW_Project.Controllers
         public async Task<IActionResult> MyContracts()
         {
             var userId = _userManager.GetUserId(User);
+            var today = DateTime.Today;
 
+            // ✅ تحديث العقود المنتهية (المرتبطة بحجوزات انتهت)
+            var expiredContracts = await _context.Contracts
+                .Include(c => c.Booking)
+                .Where(c => (c.PartyAId == userId || c.PartyBId == userId) &&
+                            c.Status == "Active" &&
+                            c.Booking.EndDate < today)
+                .ToListAsync();
+
+            foreach (var contract in expiredContracts)
+            {
+                contract.Status = "Expired";
+            }
+            if (expiredContracts.Any())
+            {
+                await _context.SaveChangesAsync();
+            }
+
+            // ✅ باقي الكود (جلب العقود وعرضها)
             var contracts = await _context.Contracts
                 .Include(c => c.Booking)
                     .ThenInclude(b => b.Listing)
@@ -261,7 +280,6 @@ namespace SW_Project.Controllers
                 .OrderByDescending(c => c.CreatedAt)
                 .ToListAsync();
 
-            // تحويل البيانات إلى ViewModel
             var viewModel = contracts.Select(c => new MyContractListItemVM
             {
                 Id = c.Id,
