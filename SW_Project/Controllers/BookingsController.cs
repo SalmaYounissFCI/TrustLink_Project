@@ -1,30 +1,21 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.SqlServer.Server;
-using SW_Project.Data;
+using SW_Project.Interfaces;
 using SW_Project.Models;
 using SW_Project.ViewModels.Booking;
-using System;
-using System.Linq;
-using System.Runtime.ConstrainedExecution;
-using System.Security.Cryptography.Xml;
-using System.Threading.Tasks;
-using static System.Net.Mime.MediaTypeNames;
-
 
 namespace SW_Project.Controllers
 {
     [Authorize]
     public class BookingsController : Controller
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly UserManager<ApplicationUser> _userManager;
 
-        public BookingsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+        public BookingsController(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
             _userManager = userManager;
         }
 
@@ -33,17 +24,21 @@ namespace SW_Project.Controllers
             var userId = _userManager.GetUserId(User);
             var today = DateTime.Today;
 
-            var bookings = await _context.Bookings
-                .Include(b => b.Listing)
-                .Where(b => b.RenterId == userId)
-                .OrderByDescending(b => b.CreatedAt)
-                .ToListAsync();
+            var bookings = await _unitOfWork.Bookings.FindAllAsync(
+                b => b.RenterId == userId,
+                b => b.Listing);
 
-            var userReviews = await _context.Reviews
-                .Where(r => r.ReviewerId == userId)
-                .ToDictionaryAsync(r => r.BookingId, r => true);
+            // ✅ إضافة ToList()
+            var orderedBookings = bookings.OrderByDescending(b => b.CreatedAt).ToList();
 
-            var viewModel = bookings.Select(b => new MyBookingVM
+            var userReviews = new HashSet<int>();
+            var reviews = await _unitOfWork.Reviews.FindAllAsync(r => r.ReviewerId == userId);
+            foreach (var review in reviews)
+            {
+                userReviews.Add(review.BookingId);
+            }
+
+            var viewModel = orderedBookings.Select(b => new MyBookingVM
             {
                 Id = b.Id,
                 ListingTitle = b.Listing.Title,
@@ -54,7 +49,7 @@ namespace SW_Project.Controllers
                 ListingId = b.ListingId,
                 RenterId = b.RenterId,
                 OwnerId = b.Listing.OwnerId,
-                HasReviewed = userReviews.ContainsKey(b.Id)
+                HasReviewed = userReviews.Contains(b.Id)
             }).ToList();
 
             ViewBag.UserId = userId;
@@ -64,28 +59,38 @@ namespace SW_Project.Controllers
         public async Task<IActionResult> ReceivedBookings()
         {
             var userId = _userManager.GetUserId(User);
-            var bookings = await _context.Bookings
-                .Include(b => b.Listing)
-                .ThenInclude(l => l.Category)
-                .Include(b => b.Renter)
-                .Where(b => b.Listing.OwnerId == userId)
-                .OrderByDescending(b => b.CreatedAt)
-                .ToListAsync();
 
-            var bookingIds = bookings.Select(b => b.Id).ToList();
-            var contracts = await _context.Contracts
-                .Where(c => bookingIds.Contains(c.BookingId))
-                .ToDictionaryAsync(c => c.BookingId, c => c.Id);
+            var bookings = await _unitOfWork.Bookings.FindAllAsync(
+                b => b.Listing.OwnerId == userId,
+                b => b.Listing,
+                b => b.Listing.Category,
+                b => b.Renter);
+
+            // ✅ إضافة ToList()
+            var orderedBookings = bookings.OrderByDescending(b => b.CreatedAt).ToList();
+
+            var bookingIds = orderedBookings.Select(b => b.Id).ToList();
+            var contracts = new Dictionary<int, int>();
+
+            foreach (var id in bookingIds)
+            {
+                var contract = await _unitOfWork.Contracts.FindAsync(c => c.BookingId == id);
+                if (contract != null)
+                {
+                    contracts[id] = contract.Id;
+                }
+            }
 
             ViewBag.ContractIds = contracts;
-            return View(bookings);
+            return View(orderedBookings);
         }
 
         public async Task<IActionResult> Create(int listingId)
         {
-            var listing = await _context.Listings
-                .Include(l => l.Category)
-                .FirstOrDefaultAsync(l => l.Id == listingId);
+            var listing = await _unitOfWork.Listings.FindAsync(
+                l => l.Id == listingId,
+                l => l.Category);
+
             if (listing == null)
                 return NotFound();
 
@@ -102,7 +107,7 @@ namespace SW_Project.Controllers
             ModelState.Remove("TotalPrice");
             ModelState.Remove("RenterId");
 
-            var listing = await _context.Listings.FindAsync(booking.ListingId);
+            var listing = await _unitOfWork.Listings.GetByIdAsync(booking.ListingId);
             if (listing == null)
                 return NotFound();
 
@@ -115,15 +120,12 @@ namespace SW_Project.Controllers
                 ModelState.AddModelError("EndDate", "End date must be after start date.");
             }
 
-            var conflictingBooking = await _context.Bookings
-                .Where(b => b.ListingId == booking.ListingId &&
-                            b.Status != "Rejected" &&
-                            b.Status != "Cancelled" &&
-                            b.Status != "Completed" &&
-                            ((booking.StartDate >= b.StartDate && booking.StartDate < b.EndDate) ||
-                             (booking.EndDate > b.StartDate && booking.EndDate <= b.EndDate) ||
-                             (booking.StartDate <= b.StartDate && booking.EndDate >= b.EndDate)))
-                .FirstOrDefaultAsync();
+            var allBookings = await _unitOfWork.Bookings.FindAllAsync(b => b.ListingId == booking.ListingId);
+            var conflictingBooking = allBookings.FirstOrDefault(b =>
+                b.Status != "Rejected" && b.Status != "Cancelled" && b.Status != "Completed" &&
+                ((booking.StartDate >= b.StartDate && booking.StartDate < b.EndDate) ||
+                 (booking.EndDate > b.StartDate && booking.EndDate <= b.EndDate) ||
+                 (booking.StartDate <= b.StartDate && booking.EndDate >= b.EndDate)));
 
             if (conflictingBooking != null)
             {
@@ -143,10 +145,10 @@ namespace SW_Project.Controllers
             booking.Status = "Pending";
             booking.CreatedAt = DateTime.Now;
 
-            _context.Bookings.Add(booking);
-            await _context.SaveChangesAsync();
+            await _unitOfWork.Bookings.AddAsync(booking);
+            await _unitOfWork.CompleteAsync();
 
-            // ✅ إشعار للمالك عند إنشاء حجز جديد (تمت الإضافة)
+            // Send notification to owner
             var ownerNotification = new Notification
             {
                 UserId = listing.OwnerId,
@@ -156,8 +158,8 @@ namespace SW_Project.Controllers
                 IsRead = false,
                 CreatedAt = DateTime.Now
             };
-            _context.Notifications.Add(ownerNotification);
-            await _context.SaveChangesAsync();
+            await _unitOfWork.Notifications.AddAsync(ownerNotification);
+            await _unitOfWork.CompleteAsync();
 
             TempData["Success"] = "Your booking request has been sent. The owner will review it.";
             return RedirectToAction("MyBookings");
@@ -167,10 +169,10 @@ namespace SW_Project.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateStatus(int id, string status)
         {
-            var booking = await _context.Bookings
-                .Include(b => b.Listing)
-                .Include(b => b.Renter)
-                .FirstOrDefaultAsync(b => b.Id == id);
+            var booking = await _unitOfWork.Bookings.FindAsync(
+                b => b.Id == id,
+                b => b.Listing,
+                b => b.Renter);
 
             if (booking == null)
                 return NotFound();
@@ -183,9 +185,9 @@ namespace SW_Project.Controllers
                 return BadRequest();
 
             booking.Status = status;
-            await _context.SaveChangesAsync();
+            _unitOfWork.Bookings.Update(booking);
+            await _unitOfWork.CompleteAsync();
 
-            // ✅ إشعار للمستأجر عند قبول أو رفض الحجز (تمت الإضافة)
             if (status == "Accepted")
             {
                 var renterNotification = new Notification
@@ -197,10 +199,9 @@ namespace SW_Project.Controllers
                     IsRead = false,
                     CreatedAt = DateTime.Now
                 };
-                _context.Notifications.Add(renterNotification);
+                await _unitOfWork.Notifications.AddAsync(renterNotification);
 
-                var existingContract = await _context.Contracts
-                    .FirstOrDefaultAsync(c => c.BookingId == booking.Id);
+                var existingContract = await _unitOfWork.Contracts.FindAsync(c => c.BookingId == booking.Id);
 
                 if (existingContract == null)
                 {
@@ -217,10 +218,9 @@ namespace SW_Project.Controllers
                             Status = "Draft",
                             CreatedAt = DateTime.Now
                         };
-                        _context.Contracts.Add(contract);
-                        await _context.SaveChangesAsync();
+                        await _unitOfWork.Contracts.AddAsync(contract);
+                        await _unitOfWork.CompleteAsync();
 
-                        // ✅ إشعارات للطرفين بأن العقد جاهز (تمت الإضافة)
                         var notif1 = new Notification
                         {
                             UserId = contract.PartyAId,
@@ -239,8 +239,8 @@ namespace SW_Project.Controllers
                             IsRead = false,
                             CreatedAt = DateTime.Now
                         };
-                        _context.Notifications.AddRange(notif1, notif2);
-                        await _context.SaveChangesAsync();
+                        await _unitOfWork.Notifications.AddRangeAsync(new[] { notif1, notif2 });
+                        await _unitOfWork.CompleteAsync();
 
                         TempData["ContractCreated"] = "Contract has been created successfully.";
                     }
@@ -262,8 +262,8 @@ namespace SW_Project.Controllers
                     IsRead = false,
                     CreatedAt = DateTime.Now
                 };
-                _context.Notifications.Add(renterNotification);
-                await _context.SaveChangesAsync();
+                await _unitOfWork.Notifications.AddAsync(renterNotification);
+                await _unitOfWork.CompleteAsync();
             }
 
             TempData["Success"] = $"Booking has been {status.ToLower()}.";
@@ -272,25 +272,24 @@ namespace SW_Project.Controllers
 
         private string GenerateContractTerms(Booking booking)
         {
-            var listing = booking.Listing;
             var days = (booking.EndDate - booking.StartDate).Days;
 
             return $@"
-                This Rental Agreement is made on {DateTime.Now:MMMM dd, yyyy} between:
-                Owner: {listing.Owner?.Name ?? "Owner"}  
-                Renter: {booking.Renter?.Name ?? "Renter"}
-                Property: '{listing.Title}'- '{listing.Description}'
-                Location: {listing.Location}
+                This Rental Agreement is made on {DateTime.Now:MMMM dd, yyyy}
+                
+                Property: '{booking.Listing.Title}'
+                Location: {booking.Listing.Location}
                 
                 Term: From {booking.StartDate:MMMM dd, yyyy} to {booking.EndDate:MMMM dd, yyyy} ({days} days)
-                Rental Fee: ${listing.PricePerDay} per day → Total: ${booking.TotalPrice}
-                Deposit: ${listing.Deposit ?? 0}
+                Rental Fee: ${booking.Listing.PricePerDay} per day → Total: ${booking.TotalPrice}
+                Deposit: ${booking.Listing.Deposit ?? 0}
+                
                 Terms & Conditions:
                 1. The Renter agrees to use the item responsibly.
                 2. The Owner confirms the item is in good working condition.
                 3. Any damage beyond normal wear and tear will be deducted from the deposit.
                 4. Both parties agree to the terms outlined in this digital contract.
-
+                
                 This document is legally binding upon electronic signature by both parties";
         }
 
@@ -298,9 +297,9 @@ namespace SW_Project.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Complete(int id)
         {
-            var booking = await _context.Bookings
-                .Include(b => b.Listing)
-                .FirstOrDefaultAsync(b => b.Id == id);
+            var booking = await _unitOfWork.Bookings.FindAsync(
+                b => b.Id == id,
+                b => b.Listing);
 
             if (booking == null) return NotFound();
 
@@ -315,7 +314,8 @@ namespace SW_Project.Controllers
             }
 
             booking.Status = "Completed";
-            await _context.SaveChangesAsync();
+            _unitOfWork.Bookings.Update(booking);
+            await _unitOfWork.CompleteAsync();
 
             TempData["Success"] = "Booking marked as completed. You can now leave a review.";
             return RedirectToAction("MyBookings");

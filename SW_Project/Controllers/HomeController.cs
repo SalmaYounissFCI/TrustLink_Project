@@ -1,36 +1,34 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SW_Project.Data;
+using SW_Project.Interfaces;
 using SW_Project.Models;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace SW_Project.Controllers
 {
     public class HomeController : Controller
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<HomeController> _logger;
 
-
-        public HomeController(ApplicationDbContext context, ILogger<HomeController> logger)
+        public HomeController(IUnitOfWork unitOfWork, ILogger<HomeController> logger)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
             _logger = logger;
         }
 
         public async Task<IActionResult> Index()
         {
-            var recentListings = await _context.Listings
-                .Include(l => l.Category)
-                .Include(l => l.ListingImages)
-                .Where(l => l.Status == "Available")
+            var recentListings = await _unitOfWork.Listings.FindAllAsync(
+                l => l.Status == "Available",
+                l => l.Category,
+                l => l.ListingImages);
+
+            var orderedListings = recentListings
                 .OrderByDescending(l => l.CreatedAt)
                 .Take(3)
-                .ToListAsync();
+                .ToList();
 
-            return View(recentListings);
+            return View(orderedListings);
         }
 
         public IActionResult Privacy()
@@ -60,7 +58,5 @@ namespace SW_Project.Controllers
             ViewData["Title"] = "Contact Us - TrustLink";
             return View();
         }
-
-        
     }
 }

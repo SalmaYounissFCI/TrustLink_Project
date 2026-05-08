@@ -1,57 +1,59 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Rotativa.AspNetCore;
-using SW_Project.Data;
+using SW_Project.Interfaces;
 using SW_Project.Models;
 using SW_Project.ViewModels.Contract;
-using System;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace SW_Project.Controllers
 {
     [Authorize]
     public class ContractsController : Controller
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IEmailSender _emailSender;
+        private readonly IWebHostEnvironment _webHostEnvironment;
 
-        public ContractsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IEmailSender emailSender)
+        public ContractsController(
+            IUnitOfWork unitOfWork,
+            UserManager<ApplicationUser> userManager,
+            IEmailSender emailSender,
+            IWebHostEnvironment webHostEnvironment)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
             _userManager = userManager;
             _emailSender = emailSender;
+            _webHostEnvironment = webHostEnvironment;
         }
 
-        // عرض تفاصيل العقد
         [AllowAnonymous]
         public async Task<IActionResult> Details(int id)
         {
-            var contract = await _context.Contracts
-                .Include(c => c.Booking)
-                    .ThenInclude(b => b.Listing)
-                        .ThenInclude(l => l.Category)
-                .Include(c => c.ContractSignatures)
-                .FirstOrDefaultAsync(c => c.Id == id);
+            var contract = await _unitOfWork.Contracts.FindAsync(
+                c => c.Id == id,
+                c => c.Booking,
+                c => c.Booking.Listing,
+                c => c.Booking.Listing.Category,
+                c => c.ContractSignatures);
+
             if (contract == null)
                 return NotFound();
 
             var userId = _userManager.GetUserId(User);
             var userIsParty = userId == contract.PartyAId || userId == contract.PartyBId;
-            if (!User.Identity.IsAuthenticated || !userIsParty)
+
+            if (!User.Identity?.IsAuthenticated == true || !userIsParty)
                 return Forbid();
 
-            var signatures = await _context.ContractSignatures
-                .Where(s => s.ContractId == id)
-                .ToListAsync();
+            var signatures = await _unitOfWork.ContractSignatures.FindAllAsync(s => s.ContractId == id);
 
             var partyASig = signatures.FirstOrDefault(s => s.UserId == contract.PartyAId);
             var partyBSig = signatures.FirstOrDefault(s => s.UserId == contract.PartyBId);
+
+            var partyA = await _unitOfWork.Users.GetByIdAsync(contract.PartyAId);
+            var partyB = await _unitOfWork.Users.GetByIdAsync(contract.PartyBId);
 
             var viewModel = new ContractDetailsVM
             {
@@ -71,14 +73,14 @@ namespace SW_Project.Controllers
                 TotalPrice = contract.Booking.TotalPrice,
                 Deposit = contract.Booking.Listing.Deposit,
                 PartyAId = contract.PartyAId,
-                PartyAName = (await _userManager.FindByIdAsync(contract.PartyAId))?.Name ?? "Owner",
-                PartyAEmail = (await _userManager.FindByIdAsync(contract.PartyAId))?.Email,
+                PartyAName = partyA?.Name ?? "Owner",
+                PartyAEmail = partyA?.Email,
                 PartyASigned = partyASig != null,
                 PartyASignatureImage = partyASig?.SignatureImage,
                 PartyASignedAt = partyASig?.SignedAt,
                 PartyBId = contract.PartyBId,
-                PartyBName = (await _userManager.FindByIdAsync(contract.PartyBId))?.Name ?? "Renter",
-                PartyBEmail = (await _userManager.FindByIdAsync(contract.PartyBId))?.Email,
+                PartyBName = partyB?.Name ?? "Renter",
+                PartyBEmail = partyB?.Email,
                 PartyBSigned = partyBSig != null,
                 PartyBSignatureImage = partyBSig?.SignatureImage,
                 PartyBSignedAt = partyBSig?.SignedAt,
@@ -91,12 +93,12 @@ namespace SW_Project.Controllers
             return View(viewModel);
         }
 
-        // GET: صفحة التوقيع
         public async Task<IActionResult> Sign(int id)
         {
-            var contract = await _context.Contracts
-                .Include(c => c.Booking)
-                .FirstOrDefaultAsync(c => c.Id == id);
+            var contract = await _unitOfWork.Contracts.FindAsync(
+                c => c.Id == id,
+                c => c.Booking);
+
             if (contract == null)
                 return NotFound();
 
@@ -104,25 +106,24 @@ namespace SW_Project.Controllers
             if (userId != contract.PartyAId && userId != contract.PartyBId)
                 return Forbid();
 
-            var existingSig = await _context.ContractSignatures.AnyAsync(s => s.ContractId == id && s.UserId == userId);
+            var existingSig = await _unitOfWork.ContractSignatures.ExistsAsync(s => s.ContractId == id && s.UserId == userId);
             if (existingSig)
                 return RedirectToAction("Details", new { id });
+
+            var party = await _unitOfWork.Users.GetByIdAsync(userId);
 
             var viewModel = new ContractSignVM
             {
                 ContractId = contract.Id,
                 Title = contract.Title,
                 Terms = contract.Terms,
-                PartyName = userId == contract.PartyAId ?
-                    (await _userManager.FindByIdAsync(contract.PartyAId))?.Name :
-                    (await _userManager.FindByIdAsync(contract.PartyBId))?.Name,
+                PartyName = party?.Name,
                 PartyRole = userId == contract.PartyAId ? "Owner" : "Renter"
             };
 
             return View(viewModel);
         }
 
-        // POST: حفظ التوقيع
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Sign(ContractSignVM model)
@@ -132,10 +133,11 @@ namespace SW_Project.Controllers
                 return View(model);
             }
 
-            var contract = await _context.Contracts
-                .Include(c => c.Booking)
-                    .ThenInclude(b => b.Listing)
-                .FirstOrDefaultAsync(c => c.Id == model.ContractId);
+            var contract = await _unitOfWork.Contracts.FindAsync(
+                c => c.Id == model.ContractId,
+                c => c.Booking,
+                c => c.Booking.Listing);
+
             if (contract == null)
                 return NotFound();
 
@@ -143,7 +145,7 @@ namespace SW_Project.Controllers
             if (userId != contract.PartyAId && userId != contract.PartyBId)
                 return Forbid();
 
-            var existing = await _context.ContractSignatures.AnyAsync(s => s.ContractId == model.ContractId && s.UserId == userId);
+            var existing = await _unitOfWork.ContractSignatures.ExistsAsync(s => s.ContractId == model.ContractId && s.UserId == userId);
             if (existing)
                 return BadRequest("Already signed.");
 
@@ -154,14 +156,17 @@ namespace SW_Project.Controllers
                 SignatureImage = model.SignatureBase64,
                 SignedAt = DateTime.Now
             };
-            _context.ContractSignatures.Add(signature);
-            await _context.SaveChangesAsync();
 
-            var signaturesCount = await _context.ContractSignatures.CountAsync(s => s.ContractId == model.ContractId);
+            await _unitOfWork.ContractSignatures.AddAsync(signature);
+            await _unitOfWork.CompleteAsync();
+
+            var signaturesCount = await _unitOfWork.ContractSignatures.CountAsync(s => s.ContractId == model.ContractId);
+
             if (signaturesCount == 2)
             {
                 contract.Status = "Active";
-                await _context.SaveChangesAsync();
+                _unitOfWork.Contracts.Update(contract);
+                await _unitOfWork.CompleteAsync();
                 await GenerateAndSendContractPdf(contract.Id);
             }
 
@@ -169,144 +174,115 @@ namespace SW_Project.Controllers
             return RedirectToAction("Details", new { id = model.ContractId });
         }
 
-        // إنشاء PDF وإرساله بالبريد
         private async Task GenerateAndSendContractPdf(int contractId)
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine("===== GenerateAndSendContractPdf START =====");
+                var contract = await _unitOfWork.Contracts.FindAsync(
+                    c => c.Id == contractId,
+                    c => c.Booking,
+                    c => c.Booking.Listing,
+                    c => c.Booking.Listing.Owner,
+                    c => c.Booking.Renter,
+                    c => c.ContractSignatures);
 
-                var contract = await _context.Contracts
-                    .Include(c => c.Booking)
-                        .ThenInclude(b => b.Listing)
-                            .ThenInclude(l => l.Owner)
-                    .Include(c => c.Booking.Renter)
-                    .Include(c => c.ContractSignatures)
-                    .FirstOrDefaultAsync(c => c.Id == contractId);
+                if (contract == null) return;
 
-                if (contract == null)
-                {
-                    System.Diagnostics.Debug.WriteLine("Contract not found!");
-                    return;
-                }
-
-                System.Diagnostics.Debug.WriteLine($"Generating PDF for contract ID: {contractId}");
-
-                // ✅ تأكدي من وجود ملف _ContractPdf.cshtml في مجلد Views/Contracts
                 var pdfBytes = await new ViewAsPdf("_ContractPdf", contract)
                 {
                     PageSize = Rotativa.AspNetCore.Options.Size.A4,
                     PageMargins = { Left = 15, Right = 15, Top = 20, Bottom = 20 }
                 }.BuildFile(ControllerContext);
 
-                System.Diagnostics.Debug.WriteLine($"PDF generated, size: {pdfBytes.Length} bytes");
-
-                var pdfDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "contracts");
+                var pdfDir = Path.Combine(_webHostEnvironment.WebRootPath, "contracts");
                 if (!Directory.Exists(pdfDir))
                     Directory.CreateDirectory(pdfDir);
 
                 var pdfPath = Path.Combine(pdfDir, $"contract_{contractId}.pdf");
-                System.IO.File.WriteAllBytes(pdfPath, pdfBytes);
+                await System.IO.File.WriteAllBytesAsync(pdfPath, pdfBytes);
+
                 contract.PdfPath = $"/contracts/contract_{contractId}.pdf";
-                await _context.SaveChangesAsync();
+                _unitOfWork.Contracts.Update(contract);
+                await _unitOfWork.CompleteAsync();
 
-                System.Diagnostics.Debug.WriteLine($"PDF saved at: {contract.PdfPath}");
+                var partyA = await _unitOfWork.Users.GetByIdAsync(contract.PartyAId);
+                var partyB = await _unitOfWork.Users.GetByIdAsync(contract.PartyBId);
+                var baseUrl = $"{Request.Scheme}://{Request.Host}";
+                var pdfLink = $"{baseUrl}{contract.PdfPath}";
+                var subject = $"Your contract is ready – {contract.Title}";
+                var body = $@"<p>Dear {partyA?.Name ?? "Party A"} / {partyB?.Name ?? "Party B"},</p>
+                             <p>The contract for <strong>{contract.Booking.Listing.Title}</strong> has been signed by both parties.</p>
+                             <p>You can download the final PDF here: <a href='{pdfLink}'>Download Contract</a></p>";
 
-                // ✅ إرسال الإيميل (اختياري – لو عايزة تشتغل)
-                try
-                {
-                    var partyA = await _userManager.FindByIdAsync(contract.PartyAId);
-                    var partyB = await _userManager.FindByIdAsync(contract.PartyBId);
-                    var baseUrl = $"{Request.Scheme}://{Request.Host}";
-                    var pdfLink = $"{baseUrl}{contract.PdfPath}";
-                    var subject = $"Your contract is ready – {contract.Title}";
-                    var body = $@"<p>Dear {partyA?.Name ?? "Party A"} / {partyB?.Name ?? "Party B"},</p>
-                         <p>The contract for <strong>{contract.Booking.Listing.Title}</strong> has been signed by both parties.</p>
-                         <p>You can download the final PDF here: <a href='{pdfLink}'>Download Contract</a></p>
-                         <p>Thank you for using TrustLink.</p>";
-
-                    if (partyA?.Email != null)
-                        await _emailSender.SendEmailAsync(partyA.Email, subject, body);
-                    if (partyB?.Email != null)
-                        await _emailSender.SendEmailAsync(partyB.Email, subject, body);
-
-                    System.Diagnostics.Debug.WriteLine("Email sent successfully");
-                }
-                catch (Exception emailEx)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Email error: {emailEx.Message}");
-                    // لا نوقف العملية لو فشل الإيميل – المهم الـ PDF اتحفظ
-                }
-
-                System.Diagnostics.Debug.WriteLine("===== GenerateAndSendContractPdf END =====");
+                if (partyA?.Email != null)
+                    await _emailSender.SendEmailAsync(partyA.Email, subject, body);
+                if (partyB?.Email != null)
+                    await _emailSender.SendEmailAsync(partyB.Email, subject, body);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"ERROR in GenerateAndSendContractPdf: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                System.Diagnostics.Debug.WriteLine($"ERROR generating PDF: {ex.Message}");
             }
         }
-        // GET: /Contracts/MyContracts
+
         [Authorize]
         public async Task<IActionResult> MyContracts()
         {
             var userId = _userManager.GetUserId(User);
             var today = DateTime.Today;
 
-            // ✅ تحديث العقود المنتهية (المرتبطة بحجوزات انتهت)
-            var expiredContracts = await _context.Contracts
-                .Include(c => c.Booking)
-                .Where(c => (c.PartyAId == userId || c.PartyBId == userId) &&
-                            c.Status == "Active" &&
-                            c.Booking.EndDate < today)
-                .ToListAsync();
+            var contracts = await _unitOfWork.Contracts.FindAllAsync(
+                c => c.PartyAId == userId || c.PartyBId == userId,
+                c => c.Booking,
+                c => c.Booking.Listing,
+                c => c.Booking.Listing.Category,
+                c => c.ContractSignatures);
 
-            foreach (var contract in expiredContracts)
+            // Update expired contracts
+            foreach (var contract in contracts.Where(c => c.Status == "Active" && c.Booking.EndDate < today))
             {
                 contract.Status = "Expired";
-            }
-            if (expiredContracts.Any())
-            {
-                await _context.SaveChangesAsync();
+                _unitOfWork.Contracts.Update(contract);
             }
 
-            // ✅ باقي الكود (جلب العقود وعرضها)
-            var contracts = await _context.Contracts
-                .Include(c => c.Booking)
-                    .ThenInclude(b => b.Listing)
-                        .ThenInclude(l => l.Category)
-                .Include(c => c.ContractSignatures)
-                .Where(c => c.PartyAId == userId || c.PartyBId == userId)
-                .OrderByDescending(c => c.CreatedAt)
-                .ToListAsync();
-
-            var viewModel = contracts.Select(c => new MyContractListItemVM
+            if (contracts.Any(c => c.Status == "Expired"))
             {
-                Id = c.Id,
-                Title = c.Title,
-                Status = c.Status,
-                CreatedAt = c.CreatedAt,
-                ListingTitle = c.Booking.Listing.Title,
-                ListingLocation = c.Booking.Listing.Location,
-                TotalPrice = c.Booking.TotalPrice,
-                PdfPath = c.PdfPath,
-                OtherPartyName = c.PartyAId == userId ?
-                    (_context.Users.Find(c.PartyBId)?.Name ?? "Renter") :
-                    (_context.Users.Find(c.PartyAId)?.Name ?? "Owner"),
-                OtherPartyRole = c.PartyAId == userId ? "Renter" : "Owner",
-                IsSignedByMe = c.ContractSignatures.Any(s => s.UserId == userId),
-                IsSignedByOther = c.ContractSignatures.Count() == 2,
-                SignedAt = c.ContractSignatures.FirstOrDefault(s => s.UserId == userId)?.SignedAt
-            }).ToList();
+                await _unitOfWork.CompleteAsync();
+            }
 
-            ViewBag.TotalContracts = contracts.Count;
+            var orderedContracts = contracts.OrderByDescending(c => c.CreatedAt);
+
+            var viewModel = new List<MyContractListItemVM>();
+
+            foreach (var c in orderedContracts)
+            {
+                var otherPartyId = c.PartyAId == userId ? c.PartyBId : c.PartyAId;
+                var otherParty = await _unitOfWork.Users.GetByIdAsync(otherPartyId);
+
+                viewModel.Add(new MyContractListItemVM
+                {
+                    Id = c.Id,
+                    Title = c.Title,
+                    Status = c.Status,
+                    CreatedAt = c.CreatedAt,
+                    ListingTitle = c.Booking.Listing.Title,
+                    ListingLocation = c.Booking.Listing.Location,
+                    TotalPrice = c.Booking.TotalPrice,
+                    PdfPath = c.PdfPath,
+                    OtherPartyName = otherParty?.Name ?? (c.PartyAId == userId ? "Renter" : "Owner"),
+                    OtherPartyRole = c.PartyAId == userId ? "Renter" : "Owner",
+                    IsSignedByMe = c.ContractSignatures.Any(s => s.UserId == userId),
+                    IsSignedByOther = c.ContractSignatures.Count() == 2,
+                    SignedAt = c.ContractSignatures.FirstOrDefault(s => s.UserId == userId)?.SignedAt
+                });
+            }
+
+            ViewBag.TotalContracts = contracts.Count();
             ViewBag.ActiveContracts = contracts.Count(c => c.Status == "Active");
             ViewBag.PendingContracts = contracts.Count(c => c.Status == "Draft");
             ViewBag.CompletedContracts = contracts.Count(c => c.Status == "Completed");
 
             return View(viewModel);
         }
-
     }
-
 }

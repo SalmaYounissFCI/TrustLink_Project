@@ -1,40 +1,34 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SW_Project.Data;
+using SW_Project.Interfaces;
 using SW_Project.Models;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace SW_Project.Controllers
 {
     [Authorize]
     public class ReviewsController : Controller
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly UserManager<ApplicationUser> _userManager;
 
-        public ReviewsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+        public ReviewsController(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
             _userManager = userManager;
         }
 
-        // GET: عرض صفحة إضافة تقييم
         public async Task<IActionResult> Create(int bookingId, string revieweeId)
         {
-            var booking = await _context.Bookings
-                .Include(b => b.Listing)
-                .FirstOrDefaultAsync(b => b.Id == bookingId);
+            var booking = await _unitOfWork.Bookings.FindAsync(
+                b => b.Id == bookingId,
+                b => b.Listing);
 
             if (booking == null)
                 return NotFound();
 
             var userId = _userManager.GetUserId(User);
 
-            // ✅ التحقق من إن الحجز مكتمل أو انتهت مدته
             var isEffectivelyCompleted = booking.Status == "Completed" || booking.EndDate < DateTime.Today;
             if (!isEffectivelyCompleted)
             {
@@ -42,26 +36,23 @@ namespace SW_Project.Controllers
                 return RedirectToAction("MyBookings", "Bookings");
             }
 
-            // التحقق من إن المستخدم لسة ما قيمش
-            var existingReview = await _context.Reviews
-                .FirstOrDefaultAsync(r => r.BookingId == bookingId && r.ReviewerId == userId);
+            var existingReview = await _unitOfWork.Reviews.ExistsAsync(r => r.BookingId == bookingId && r.ReviewerId == userId);
 
-            if (existingReview != null)
+            if (existingReview)
             {
                 TempData["Error"] = "You have already reviewed this booking.";
                 return RedirectToAction("MyBookings", "Bookings");
             }
 
-            var reviewee = await _userManager.FindByIdAsync(revieweeId);
+            var reviewee = await _unitOfWork.Users.GetByIdAsync(revieweeId);
 
             ViewBag.Booking = booking;
             ViewBag.RevieweeId = revieweeId;
             ViewBag.RevieweeName = reviewee?.Name ?? "User";
 
-            return View(new Review { BookingId = bookingId });
+            return View(new Review { BookingId = bookingId, RevieweeId = revieweeId });
         }
 
-        // POST: حفظ التقييم
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(Review model)
@@ -70,14 +61,12 @@ namespace SW_Project.Controllers
             ModelState.Remove("Reviewer");
             ModelState.Remove("Reviewee");
             ModelState.Remove("ReviewerId");
-            ModelState.Remove("RevieweeId");
-
 
             if (!ModelState.IsValid)
             {
-                var booking = await _context.Bookings
-                    .Include(b => b.Listing)
-                    .FirstOrDefaultAsync(b => b.Id == model.BookingId);
+                var booking = await _unitOfWork.Bookings.FindAsync(
+                    b => b.Id == model.BookingId,
+                    b => b.Listing);
                 ViewBag.Booking = booking;
                 return View(model);
             }
@@ -86,8 +75,7 @@ namespace SW_Project.Controllers
             model.ReviewerId = userId;
             model.CreatedAt = DateTime.Now;
 
-            var existing = await _context.Reviews
-                .AnyAsync(r => r.BookingId == model.BookingId && r.ReviewerId == userId);
+            var existing = await _unitOfWork.Reviews.ExistsAsync(r => r.BookingId == model.BookingId && r.ReviewerId == userId);
 
             if (existing)
             {
@@ -95,43 +83,42 @@ namespace SW_Project.Controllers
                 return RedirectToAction("MyBookings", "Bookings");
             }
 
-            _context.Reviews.Add(model);
-            await _context.SaveChangesAsync();
+            await _unitOfWork.Reviews.AddAsync(model);
+            await _unitOfWork.CompleteAsync();
 
-            var avgRating = await _context.Reviews
-                .Where(r => r.RevieweeId == model.RevieweeId)
-                .AverageAsync(r => (decimal)r.Rating);
+            var allReviews = await _unitOfWork.Reviews.FindAllAsync(r => r.RevieweeId == model.RevieweeId);
+            var avgRating = allReviews.Average(r => (decimal)r.Rating);
 
-            var reviewee = await _userManager.FindByIdAsync(model.RevieweeId);
-            reviewee.Rating = avgRating;
-            await _userManager.UpdateAsync(reviewee);
+            var reviewee = await _unitOfWork.Users.GetByIdAsync(model.RevieweeId);
+            if (reviewee != null)
+            {
+                reviewee.Rating = avgRating;
+                _unitOfWork.Users.Update(reviewee);
+                await _unitOfWork.CompleteAsync();
+            }
 
             TempData["Success"] = "Your review has been submitted. Thank you!";
             return RedirectToAction("MyBookings", "Bookings");
         }
-        // GET: عرض تقييماتي
+
         public async Task<IActionResult> Index()
         {
             var userId = _userManager.GetUserId(User);
 
-            var givenReviews = await _context.Reviews
-                .Include(r => r.Booking)
-                    .ThenInclude(b => b.Listing)
-                .Include(r => r.Reviewee)
-                .Where(r => r.ReviewerId == userId)
-                .OrderByDescending(r => r.CreatedAt)
-                .ToListAsync();
+            var givenReviews = await _unitOfWork.Reviews.FindAllAsync(
+                r => r.ReviewerId == userId,
+                r => r.Booking,
+                r => r.Booking.Listing,
+                r => r.Reviewee);
 
-            var receivedReviews = await _context.Reviews
-                .Include(r => r.Booking)
-                    .ThenInclude(b => b.Listing)
-                .Include(r => r.Reviewer)
-                .Where(r => r.RevieweeId == userId)
-                .OrderByDescending(r => r.CreatedAt)
-                .ToListAsync();
+            var receivedReviews = await _unitOfWork.Reviews.FindAllAsync(
+                r => r.RevieweeId == userId,
+                r => r.Booking,
+                r => r.Booking.Listing,
+                r => r.Reviewer);
 
-            ViewBag.GivenReviews = givenReviews;
-            ViewBag.ReceivedReviews = receivedReviews;
+            ViewBag.GivenReviews = givenReviews.OrderByDescending(r => r.CreatedAt).ToList();
+            ViewBag.ReceivedReviews = receivedReviews.OrderByDescending(r => r.CreatedAt).ToList();
 
             return View();
         }

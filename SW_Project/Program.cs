@@ -2,6 +2,8 @@
 using Microsoft.EntityFrameworkCore;
 using SW_Project.Data;
 using SW_Project.Models;
+using SW_Project.Interfaces;
+using SW_Project.Repositories;
 using Rotativa.AspNetCore;
 
 namespace SW_Project
@@ -16,9 +18,15 @@ namespace SW_Project
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+            // ✅ Register Repositories & UnitOfWork
+            builder.Services.AddScoped(typeof(IBaseRepository<>), typeof(BaseRepository<>));
+            builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+            // Email settings
             builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpSettings"));
             builder.Services.AddTransient<IEmailSender, EmailSender>();
-            // Identity with custom settings
+
+            // Identity
             builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
             {
                 options.Password.RequireDigit = false;
@@ -52,12 +60,12 @@ namespace SW_Project
             using (var scope = app.Services.CreateScope())
             {
                 var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                dbContext.Database.Migrate();
+                await dbContext.Database.MigrateAsync();
 
                 var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
                 var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-                // == 1. إضافة التصنيفات إذا لم توجد ==
+                // Seed Categories
                 if (!dbContext.Categories.Any())
                 {
                     var categories = new List<Category>
@@ -85,91 +93,34 @@ namespace SW_Project
                     };
                     dbContext.Categories.AddRange(categories);
                     await dbContext.SaveChangesAsync();
-                    Console.WriteLine($"{categories.Count} categories added.");
                 }
 
-                // == 2. إنشاء مستخدم تجريبي (مالك) إذا لم يوجد ==
-                var demoOwnerEmail = "owner@trustlink.com";
-                var demoOwner = await userManager.FindByEmailAsync(demoOwnerEmail);
-                if (demoOwner == null)
-                {
-                    demoOwner = new ApplicationUser
-                    {
-                        UserName = demoOwnerEmail,
-                        Email = demoOwnerEmail,
-                        Name = "Demo Owner",
-                        Location = "Cairo",
-                        CreatedAt = DateTime.Now,
-                        IsActive = true,
-                        Rating = 4.8m
-                    };
-                    var result = await userManager.CreateAsync(demoOwner, "Password123!");
-                    if (result.Succeeded)
-                        Console.WriteLine("Demo user created.");
-                    else
-                        Console.WriteLine("Failed to create demo user: " + string.Join(", ", result.Errors.Select(e => e.Description)));
-                }
-
-                // == 3. إضافة إعلانين تجريبيين إذا لم توجد إعلانات ==
-                if (!dbContext.Listings.Any() && demoOwner != null)
-                {
-                    var electronicsCat = dbContext.Categories.FirstOrDefault(c => c.Name == "Electronics");
-                    var cameraCat = dbContext.Categories.FirstOrDefault(c => c.Name == "Cameras & Photo");
-
-                    var listings = new List<Listing>();
-
-                    if (electronicsCat != null)
-                    {
-                        listings.Add(new Listing
-                        {
-                            Title = "Professional Camera",
-                            Description = "Canon EOS 90D with lens kit. Perfect for photography enthusiasts.",
-                            PricePerDay = 50,
-                            Deposit = 200,
-                            Location = "Cairo",
-                            Status = "Available",
-                            CategoryId = electronicsCat.Id,
-                            OwnerId = demoOwner.Id,
-                            CreatedAt = DateTime.Now
-                        });
-                    }
-
-                    if (cameraCat != null)
-                    {
-                        listings.Add(new Listing
-                        {
-                            Title = "DSLR Camera Kit",
-                            Description = "Nikon D3500, ideal for beginners. Includes bag and memory card.",
-                            PricePerDay = 40,
-                            Deposit = 150,
-                            Location = "Alexandria",
-                            Status = "Available",
-                            CategoryId = cameraCat.Id,
-                            OwnerId = demoOwner.Id,
-                            CreatedAt = DateTime.Now
-                        });
-                    }
-
-                    if (listings.Any())
-                    {
-                        dbContext.Listings.AddRange(listings);
-                        await dbContext.SaveChangesAsync();
-                        Console.WriteLine($"{listings.Count} demo listings added.");
-                    }
-                }
-
-                // == 4. إنشاء دور Admin إذا لم يوجد ==
+                // Create Admin role
                 if (!await roleManager.RoleExistsAsync("Admin"))
                 {
                     await roleManager.CreateAsync(new IdentityRole("Admin"));
-                    Console.WriteLine("Admin role created.");
                 }
 
-                // == 5. تعيين المستخدم owner@trustlink.com كـ Admin ==
-                if (demoOwner != null && !await userManager.IsInRoleAsync(demoOwner, "Admin"))
+                // Create demo admin user
+                var adminEmail = "admin@trustlink.com";
+                var adminUser = await userManager.FindByEmailAsync(adminEmail);
+                if (adminUser == null)
                 {
-                    await userManager.AddToRoleAsync(demoOwner, "Admin");
-                    Console.WriteLine("Admin role assigned to owner@trustlink.com");
+                    adminUser = new ApplicationUser
+                    {
+                        UserName = adminEmail,
+                        Email = adminEmail,
+                        Name = "System Administrator",
+                        Location = "Head Office",
+                        CreatedAt = DateTime.Now,
+                        IsActive = true,
+                        Rating = 5.0m
+                    };
+                    var result = await userManager.CreateAsync(adminUser, "Admin@123456");
+                    if (result.Succeeded)
+                    {
+                        await userManager.AddToRoleAsync(adminUser, "Admin");
+                    }
                 }
             }
 
@@ -189,7 +140,6 @@ namespace SW_Project
                 name: "default",
                 pattern: "{controller=Home}/{action=Index}/{id?}");
 
-            app.UseRouting();
             await app.RunAsync();
         }
     }

@@ -1,8 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SW_Project.Data;
+using SW_Project.Interfaces;
 using SW_Project.Models;
 using SW_Project.ViewModels.Message;
 
@@ -11,50 +10,45 @@ namespace SW_Project.Controllers
     [Authorize]
     public class MessagesController : Controller
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly UserManager<ApplicationUser> _userManager;
 
-        public MessagesController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+        public MessagesController(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
             _userManager = userManager;
         }
 
-        // GET: Inbox - عرض كافة المحادثات
         public async Task<IActionResult> Inbox()
         {
             var userId = _userManager.GetUserId(User);
 
-            var conversations = await _context.Conversations
-                .Include(c => c.ParticipantA)
-                .Include(c => c.ParticipantB)
-                .Include(c => c.Listing)
-                    .ThenInclude(l => l.ListingImages)
-                .Where(c => c.ParticipantAId == userId || c.ParticipantBId == userId)
-                .OrderByDescending(c => c.LastMessageAt ?? c.CreatedAt)
-                .ToListAsync();
+            var conversations = await _unitOfWork.Conversations.FindAllAsync(
+                c => c.ParticipantAId == userId || c.ParticipantBId == userId,
+                c => c.ParticipantA,
+                c => c.ParticipantB,
+                c => c.Listing,
+                c => c.Listing.ListingImages);
+
+            var orderedConversations = conversations.OrderByDescending(c => c.LastMessageAt ?? c.CreatedAt);
 
             var inboxItems = new List<InboxItemVM>();
 
-            foreach (var conv in conversations)
+            foreach (var conv in orderedConversations)
             {
                 var otherUser = conv.ParticipantAId == userId ? conv.ParticipantB : conv.ParticipantA;
 
-                var lastMessage = await _context.Messages
-                    .Where(m => m.ConversationId == conv.Id)
-                    .OrderByDescending(m => m.SentAt)
-                    .Select(m => new { m.Text, m.SentAt })
-                    .FirstOrDefaultAsync();
+                var allMessages = await _unitOfWork.Messages.FindAllAsync(m => m.ConversationId == conv.Id);
+                var lastMessage = allMessages.OrderByDescending(m => m.SentAt).FirstOrDefault();
 
-                var unreadCount = await _context.Messages
-                    .CountAsync(m => m.ConversationId == conv.Id && m.ReceiverId == userId && !m.IsRead);
+                var unreadCount = allMessages.Count(m => m.ReceiverId == userId && !m.IsRead);
 
                 inboxItems.Add(new InboxItemVM
                 {
                     ConversationId = conv.Id,
-                    OtherUserId = otherUser.Id,
-                    OtherUserName = otherUser.Name,
-                    OtherUserAvatar = !string.IsNullOrEmpty(otherUser.Name) ? otherUser.Name.Substring(0, 1).ToUpper() : "?",
+                    OtherUserId = otherUser?.Id ?? "",
+                    OtherUserName = otherUser?.Name ?? "Unknown User",
+                    OtherUserAvatar = !string.IsNullOrEmpty(otherUser?.Name) ? otherUser.Name.Substring(0, 1).ToUpper() : "?",
                     LastMessage = lastMessage?.Text ?? "No messages yet",
                     LastMessageAt = lastMessage?.SentAt ?? conv.CreatedAt,
                     UnreadCount = unreadCount,
@@ -73,7 +67,6 @@ namespace SW_Project.Controllers
             return View(viewModel);
         }
 
-        // GET: Conversation - عرض محادثة محددة
         [HttpGet]
         public async Task<IActionResult> Conversation(string userId, int? listingId = null)
         {
@@ -86,17 +79,15 @@ namespace SW_Project.Controllers
 
                 if (userId == currentUserId) return RedirectToAction("Inbox");
 
-                var otherUser = await _userManager.FindByIdAsync(userId);
+                var otherUser = await _unitOfWork.Users.GetByIdAsync(userId);
                 if (otherUser == null) return RedirectToAction("Inbox");
 
-                var conversation = await _context.Conversations
-                    .Include(c => c.Messages)
-                        .ThenInclude(m => m.Sender)
-                    .Include(c => c.Listing)
-                        .ThenInclude(l => l.ListingImages)
-                    .FirstOrDefaultAsync(c =>
-                        (c.ParticipantAId == currentUserId && c.ParticipantBId == userId) ||
-                        (c.ParticipantAId == userId && c.ParticipantBId == currentUserId));
+                var conversation = await _unitOfWork.Conversations.FindAsync(
+                    c => (c.ParticipantAId == currentUserId && c.ParticipantBId == userId) ||
+                         (c.ParticipantAId == userId && c.ParticipantBId == currentUserId),
+                    c => c.Messages,
+                    c => c.Listing,
+                    c => c.Listing.ListingImages);
 
                 if (conversation == null)
                 {
@@ -106,31 +97,41 @@ namespace SW_Project.Controllers
                         ParticipantBId = userId,
                         ListingId = listingId,
                         CreatedAt = DateTime.Now,
-                        LastMessageAt = DateTime.Now // تجنب الـ NULL من البداية
+                        LastMessageAt = DateTime.Now
                     };
-                    _context.Conversations.Add(conversation);
-                    await _context.SaveChangesAsync();
+                    await _unitOfWork.Conversations.AddAsync(conversation);
+                    await _unitOfWork.CompleteAsync();
+
+                    // Refresh to get the conversation with includes
+                    conversation = await _unitOfWork.Conversations.FindAsync(
+                        c => c.Id == conversation.Id,
+                        c => c.Messages,
+                        c => c.Listing,
+                        c => c.Listing.ListingImages);
                 }
 
-                // تحديث الرسائل لتصبح "مقروءة"
-                var unreadMessages = _context.Messages.Where(m => m.ConversationId == conversation.Id && m.ReceiverId == currentUserId && !m.IsRead);
+                // Mark unread messages as read
+                var unreadMessages = conversation.Messages?.Where(m => m.ReceiverId == currentUserId && !m.IsRead).ToList() ?? new List<Message>();
                 foreach (var msg in unreadMessages)
                 {
                     msg.IsRead = true;
                     msg.ReadAt = DateTime.Now;
+                    _unitOfWork.Messages.Update(msg);
                 }
-                await _context.SaveChangesAsync();
+                await _unitOfWork.CompleteAsync();
 
-                var messages = conversation.Messages?.OrderBy(m => m.SentAt).Select(m => new MessageItemVM
-                {
-                    Id = m.Id,
-                    Text = m.Text,
-                    SenderId = m.SenderId,
-                    SenderName = m.Sender?.Name ?? "User",
-                    IsFromCurrentUser = m.SenderId == currentUserId,
-                    SentAt = m.SentAt,
-                    IsRead = m.IsRead
-                }).ToList() ?? new List<MessageItemVM>();
+                var messages = (conversation.Messages ?? new List<Message>())
+                    .OrderBy(m => m.SentAt)
+                    .Select(m => new MessageItemVM
+                    {
+                        Id = m.Id,
+                        Text = m.Text,
+                        SenderId = m.SenderId,
+                        SenderName = m.Sender?.Name ?? "User",
+                        IsFromCurrentUser = m.SenderId == currentUserId,
+                        SentAt = m.SentAt,
+                        IsRead = m.IsRead
+                    }).ToList();
 
                 var viewModel = new ConversationVM
                 {
@@ -158,13 +159,10 @@ namespace SW_Project.Controllers
             }
         }
 
-        // POST: SendMessage - إرسال الرسالة وحفظها
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SendMessage(SendMessageVM model)
         {
-            System.Diagnostics.Debug.WriteLine($"DEBUG: Received Text: '{model.Text}'");
-            System.Diagnostics.Debug.WriteLine($"DEBUG: Received ReceiverId: {model.ReceiverId}");
             if (string.IsNullOrWhiteSpace(model.Text))
                 return RedirectToAction("Conversation", new { userId = model.ReceiverId, listingId = model.ListingId });
 
@@ -172,11 +170,9 @@ namespace SW_Project.Controllers
             {
                 var currentUserId = _userManager.GetUserId(User);
 
-                // 1. التأكد من وجود المحادثة
-                var conversation = await _context.Conversations
-                    .FirstOrDefaultAsync(c =>
-                        (c.ParticipantAId == currentUserId && c.ParticipantBId == model.ReceiverId) ||
-                        (c.ParticipantAId == model.ReceiverId && c.ParticipantBId == currentUserId));
+                var conversation = await _unitOfWork.Conversations.FindAsync(
+                    c => (c.ParticipantAId == currentUserId && c.ParticipantBId == model.ReceiverId) ||
+                         (c.ParticipantAId == model.ReceiverId && c.ParticipantBId == currentUserId));
 
                 if (conversation == null)
                 {
@@ -187,12 +183,12 @@ namespace SW_Project.Controllers
                         ListingId = model.ListingId,
                         CreatedAt = DateTime.Now
                     };
-                    _context.Conversations.Add(conversation);
+                    await _unitOfWork.Conversations.AddAsync(conversation);
+                    await _unitOfWork.CompleteAsync();
 
-                    await _context.SaveChangesAsync();
+                    conversation = await _unitOfWork.Conversations.GetByIdAsync(conversation.Id);
                 }
 
-                // 2. إنشاء الرسالة وحفظها (هذا ما سيجعل جدول Messages ممتلئاً)
                 var message = new Message
                 {
                     ConversationId = conversation.Id,
@@ -203,24 +199,17 @@ namespace SW_Project.Controllers
                     IsRead = false
                 };
 
-                _context.Messages.Add(message);
+                await _unitOfWork.Messages.AddAsync(message);
                 conversation.LastMessageAt = message.SentAt;
-
-                // 2. فحص قبل الحفظ مباشرة
-                System.Diagnostics.Debug.WriteLine("DEBUG: Attempting to save to database...");
-                var result = await _context.SaveChangesAsync();
-                System.Diagnostics.Debug.WriteLine($"DEBUG: Save changes returned: {result} rows affected");
+                _unitOfWork.Conversations.Update(conversation);
+                await _unitOfWork.CompleteAsync();
 
                 return RedirectToAction("Conversation", new { userId = model.ReceiverId, listingId = model.ListingId });
             }
             catch (Exception ex)
             {
-                // 3. طباعة الخطأ التفصيلي لو الداتابيز رفضت
-                System.Diagnostics.Debug.WriteLine($"DEBUG: CRITICAL ERROR: {ex.Message}");
-                if (ex.InnerException != null)
-                    System.Diagnostics.Debug.WriteLine($"DEBUG: Inner Exception: {ex.InnerException.Message}");
-
-                TempData["Error"] = "Failed to send.";
+                System.Diagnostics.Debug.WriteLine($"DEBUG: ERROR: {ex.Message}");
+                TempData["Error"] = "Failed to send message.";
                 return RedirectToAction("Inbox");
             }
         }
@@ -231,20 +220,19 @@ namespace SW_Project.Controllers
             var userId = _userManager.GetUserId(User);
             if (string.IsNullOrEmpty(userId)) return Json(new { count = 0 });
 
-            var unreadCount = await _context.Messages
-                .CountAsync(m => m.ReceiverId == userId && !m.IsRead);
-
+            var unreadCount = await _unitOfWork.Messages.CountAsync(m => m.ReceiverId == userId && !m.IsRead);
             return Json(new { count = unreadCount });
         }
 
         [HttpPost]
         public async Task<IActionResult> StartConversation(int listingId)
         {
-            var listing = await _context.Listings.FindAsync(listingId);
+            var listing = await _unitOfWork.Listings.GetByIdAsync(listingId);
             if (listing == null) return NotFound();
 
             var currentUserId = _userManager.GetUserId(User);
-            if (listing.OwnerId == currentUserId) return RedirectToAction("Details", "Listings", new { id = listingId });
+            if (listing.OwnerId == currentUserId)
+                return RedirectToAction("Details", "Listings", new { id = listingId });
 
             return RedirectToAction("Conversation", new { userId = listing.OwnerId, listingId = listingId });
         }

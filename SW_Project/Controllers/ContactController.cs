@@ -1,18 +1,17 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SW_Project.Data;
+using SW_Project.Interfaces;
 using SW_Project.Models;
-using System.Threading.Tasks;
 
 namespace SW_Project.Controllers
 {
     public class ContactController : Controller
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
 
-        public ContactController(ApplicationDbContext context)
+        public ContactController(IUnitOfWork unitOfWork)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
         }
 
         [HttpGet]
@@ -39,8 +38,8 @@ namespace SW_Project.Controllers
             model.SentAt = DateTime.Now;
             model.IsRead = false;
 
-            _context.ContactMessages.Add(model);
-            await _context.SaveChangesAsync();
+            await _unitOfWork.ContactMessages.AddAsync(model);
+            await _unitOfWork.CompleteAsync();
 
             TempData["Success"] = "Your message has been sent successfully. We'll get back to you soon.";
             return RedirectToAction("Index");

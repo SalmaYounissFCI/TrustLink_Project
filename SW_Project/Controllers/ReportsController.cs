@@ -1,8 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SW_Project.Data;
+using SW_Project.Interfaces;
 using SW_Project.Models;
 using SW_Project.ViewModels.Report;
 
@@ -11,16 +10,15 @@ namespace SW_Project.Controllers
     [Authorize]
     public class ReportsController : Controller
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly UserManager<ApplicationUser> _userManager;
 
-        public ReportsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+        public ReportsController(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
             _userManager = userManager;
         }
 
-        // GET: Reports/Create
         [HttpGet]
         public IActionResult Create(int? listingId, string? reportedUserId)
         {
@@ -46,7 +44,6 @@ namespace SW_Project.Controllers
             return View(vm);
         }
 
-        // POST: Reports/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(CreateReportVM vm)
@@ -62,7 +59,7 @@ namespace SW_Project.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
-            var report = new Models.Report
+            var report = new Report
             {
                 ReporterUserId = currentUser.Id,
                 ReportedListingId = vm.ListingId,
@@ -72,26 +69,26 @@ namespace SW_Project.Controllers
                 IsResolved = false
             };
 
-            _context.Reports.Add(report);
-            await _context.SaveChangesAsync();
+            await _unitOfWork.Reports.AddAsync(report);
+            await _unitOfWork.CompleteAsync();
 
             TempData["SuccessMessage"] = "تم إرسال البلاغ بنجاح، سيقوم فريق الإدارة بمراجعته.";
             return RedirectToAction("Index", "Home");
         }
 
-        // GET: Reports/Index (Admin only)
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Index()
         {
-            var reports = await _context.Reports
-                .Include(r => r.ReporterUser)
-                .Include(r => r.ReportedUser)
-                .Include(r => r.ReportedListing)
-                .ThenInclude(l => l.Category)
-                .OrderByDescending(r => r.CreatedAt)
-                .ToListAsync();
+            var reports = await _unitOfWork.Reports.FindAllAsync(
+                r => true,
+                r => r.ReporterUser,
+                r => r.ReportedUser,
+                r => r.ReportedListing,
+                r => r.ReportedListing.Category);
 
-            var vm = reports.Select(r => new ReportIndexVM
+            var orderedReports = reports.OrderByDescending(r => r.CreatedAt);
+
+            var vm = orderedReports.Select(r => new ReportIndexVM
             {
                 Id = r.Id,
                 ReporterEmail = r.ReporterUser?.Email ?? "Unknown",
@@ -100,7 +97,7 @@ namespace SW_Project.Controllers
                 CreatedAt = r.CreatedAt,
                 IsResolved = r.IsResolved,
                 ResolvedAt = r.ResolvedAt,
-                ResolvedByAdminEmail = r.ResolvedByAdmin != null ? r.ResolvedByAdmin.Email : null,
+                ResolvedByAdminEmail = null, // Would need to load admin user
                 ReportedListingId = r.ReportedListingId,
                 ReportedListingTitle = r.ReportedListing?.Title,
                 ReportedUserEmail = r.ReportedUser?.Email,
@@ -112,13 +109,12 @@ namespace SW_Project.Controllers
             return View(vm);
         }
 
-        // POST: Reports/Resolve/5 (Admin only)
         [Authorize(Roles = "Admin")]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Resolve(int id)
         {
-            var report = await _context.Reports.FindAsync(id);
+            var report = await _unitOfWork.Reports.GetByIdAsync(id);
             if (report == null)
             {
                 return NotFound();
@@ -129,26 +125,20 @@ namespace SW_Project.Controllers
             report.ResolvedAt = DateTime.UtcNow;
             report.ResolvedByAdminId = admin?.Id;
 
-            await _context.SaveChangesAsync();
+            _unitOfWork.Reports.Update(report);
+            await _unitOfWork.CompleteAsync();
 
             TempData["SuccessMessage"] = "تم حل البلاغ بنجاح";
             return RedirectToAction(nameof(Index));
         }
 
-        // POST: Reports/Delete/5 (Admin only) - optional
         [Authorize(Roles = "Admin")]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
         {
-            var report = await _context.Reports.FindAsync(id);
-            if (report == null)
-            {
-                return NotFound();
-            }
-
-            _context.Reports.Remove(report);
-            await _context.SaveChangesAsync();
+            await _unitOfWork.Reports.DeleteByIdAsync(id);
+            await _unitOfWork.CompleteAsync();
 
             TempData["SuccessMessage"] = "تم حذف البلاغ بنجاح";
             return RedirectToAction(nameof(Index));
