@@ -1,50 +1,47 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SW_Project.Data;
+using SW_Project.Interfaces;
 using SW_Project.Models;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace SW_Project.Controllers
 {
     [Authorize]
     public class FavoritesController : Controller
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly UserManager<ApplicationUser> _userManager;
 
-        public FavoritesController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+        public FavoritesController(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
             _userManager = userManager;
         }
 
-        // عرض صفحة المفضلة
         public async Task<IActionResult> Index()
         {
             var userId = _userManager.GetUserId(User);
-            var favorites = await _context.Favorites
-                .Include(f => f.Listing)
-                .ThenInclude(l => l.Category)
-                .Include(f => f.Listing.ListingImages)
-                .Where(f => f.UserId == userId)
-                .OrderByDescending(f => f.SavedAt)
-                .ToListAsync();
-            return View(favorites);
+
+            var favorites = await _unitOfWork.Favorites.FindAllAsync(
+                f => f.UserId == userId,
+                f => f.Listing,
+                f => f.Listing.Category,
+                f => f.Listing.ListingImages);
+
+            var orderedFavorites = favorites.OrderByDescending(f => f.SavedAt).ToList();
+
+            return View(orderedFavorites);
         }
 
-        // إضافة إلى المفضلة (AJAX)
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Add(int listingId)
         {
             var userId = _userManager.GetUserId(User);
-            var existing = await _context.Favorites
-                .FirstOrDefaultAsync(f => f.UserId == userId && f.ListingId == listingId);
-            if (existing != null)
+
+            var existing = await _unitOfWork.Favorites.ExistsAsync(f => f.UserId == userId && f.ListingId == listingId);
+
+            if (existing)
                 return Json(new { success = false, message = "Already in favorites" });
 
             var favorite = new Favorite
@@ -53,24 +50,27 @@ namespace SW_Project.Controllers
                 ListingId = listingId,
                 SavedAt = DateTime.Now
             };
-            _context.Favorites.Add(favorite);
-            await _context.SaveChangesAsync();
+
+            await _unitOfWork.Favorites.AddAsync(favorite);
+            await _unitOfWork.CompleteAsync();
+
             return Json(new { success = true, message = "Added to favorites" });
         }
 
-        // إزالة من المفضلة (AJAX)
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Remove(int listingId)
         {
             var userId = _userManager.GetUserId(User);
-            var favorite = await _context.Favorites
-                .FirstOrDefaultAsync(f => f.UserId == userId && f.ListingId == listingId);
+
+            var favorite = await _unitOfWork.Favorites.FindAsync(f => f.UserId == userId && f.ListingId == listingId);
+
             if (favorite == null)
                 return Json(new { success = false, message = "Not in favorites" });
 
-            _context.Favorites.Remove(favorite);
-            await _context.SaveChangesAsync();
+            _unitOfWork.Favorites.Delete(favorite);
+            await _unitOfWork.CompleteAsync();
+
             return Json(new { success = true, message = "Removed from favorites" });
         }
     }

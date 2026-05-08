@@ -1,153 +1,199 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SW_Project.Data;
+using SW_Project.Interfaces;
 using SW_Project.Models;
-using System.Linq;
-using System.Threading.Tasks;
+using SW_Project.ViewModels.Admin;
 
 namespace SW_Project.Controllers
 {
     [Authorize(Roles = "Admin")]
     public class AdminController : Controller
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly UserManager<ApplicationUser> _userManager;
 
-        public AdminController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+        public AdminController(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
             _userManager = userManager;
         }
 
         // ======================== Dashboard ========================
         public async Task<IActionResult> Index()
         {
-            ViewBag.TotalUsers = await _userManager.Users.CountAsync();
-            ViewBag.TotalListings = await _context.Listings.CountAsync();
-            ViewBag.TotalContracts = await _context.Contracts.CountAsync();
-            ViewBag.OpenReports = await _context.Reports.CountAsync(r => !r.IsResolved);
-            return View();
+            // إحصائيات المستخدمين
+            var totalUsers = await _unitOfWork.Users.CountAsync();
+
+            // إحصائيات الإعلانات
+            var totalListings = await _unitOfWork.Listings.CountAsync();
+            var activeListings = await _unitOfWork.Listings.CountAsync(l => l.Status == "Available" && !l.IsDeleted);
+
+            // إحصائيات الحجوزات
+            var totalBookings = await _unitOfWork.Bookings.CountAsync();
+            var pendingBookings = await _unitOfWork.Bookings.CountAsync(b => b.Status == "Pending");
+
+            // إحصائيات العقود
+            var totalContracts = await _unitOfWork.Contracts.CountAsync();
+
+            // إحصائيات البلاغات
+            var pendingReports = await _unitOfWork.Reports.CountAsync(r => !r.IsResolved);
+
+            // إحصائيات التقييمات
+            var totalReviews = await _unitOfWork.Reviews.CountAsync();
+
+            var viewModel = new AdminDashboardViewModel
+            {
+                TotalUsers = totalUsers,
+                TotalListings = totalListings,
+                ActiveListings = activeListings,
+                TotalBookings = totalBookings,
+                PendingBookings = pendingBookings,
+                TotalContracts = totalContracts,
+                PendingReports = pendingReports,
+                TotalReviews = totalReviews
+            };
+
+            return View(viewModel);
         }
 
-        // ======================== إدارة المستخدمين ========================
+        // ======================== Users Management ========================
         public async Task<IActionResult> Users()
         {
-            var users = await _userManager.Users.ToListAsync();
+            var users = await _unitOfWork.Users.GetAllAsync();
             return View(users);
         }
 
-        // مسح مستخدم نهائياً
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteUser(string id)
         {
-            var user = await _userManager.FindByIdAsync(id);
+            var user = await _unitOfWork.Users.GetByIdAsync(id);
             if (user == null) return NotFound();
 
-            // منع مسح المشرف نفسه
             var currentUser = await _userManager.GetUserAsync(User);
-            if (currentUser.Id == id)
+            if (currentUser?.Id == id)
             {
                 TempData["Error"] = "You cannot delete your own account.";
                 return RedirectToAction(nameof(Users));
             }
 
-            // 1. حذف عقود المستخدم
-            var userContracts = _context.Contracts.Where(c => c.PartyAId == id || c.PartyBId == id);
-            _context.Contracts.RemoveRange(userContracts);
+            await _unitOfWork.BeginTransactionAsync();
 
-            // 2. حذف توقيعات العقود
-            var userSignatures = _context.ContractSignatures.Where(s => s.UserId == id);
-            _context.ContractSignatures.RemoveRange(userSignatures);
-
-            // 3. حذف الحجوزات
-            var userBookings = _context.Bookings.Where(b => b.RenterId == id || b.Listing.OwnerId == id);
-            _context.Bookings.RemoveRange(userBookings);
-
-            // 4. حذف الإعلانات
-            var userListings = _context.Listings.Where(l => l.OwnerId == id);
-            _context.Listings.RemoveRange(userListings);
-
-            // 5. حذف البلاغات
-            var reportsAsReporter = _context.Reports.Where(r => r.ReporterUserId == id);
-            var reportsAsReported = _context.Reports.Where(r => r.ReportedUserId == id);
-            _context.Reports.RemoveRange(reportsAsReporter);
-            _context.Reports.RemoveRange(reportsAsReported);
-
-            // حفظ التغييرات قبل حذف المستخدم
-            await _context.SaveChangesAsync();
-
-            // 6. حذف المستخدم
-            var result = await _userManager.DeleteAsync(user);
-            if (result.Succeeded)
+            try
             {
-                TempData["Success"] = $"User {user.Name} and all related data have been permanently deleted.";
+                // Delete related data
+                var userContracts = await _unitOfWork.Contracts.FindAllAsync(c => c.PartyAId == id || c.PartyBId == id);
+                _unitOfWork.Contracts.DeleteRange(userContracts);
+
+                var userSignatures = await _unitOfWork.ContractSignatures.FindAllAsync(s => s.UserId == id);
+                _unitOfWork.ContractSignatures.DeleteRange(userSignatures);
+
+                var userBookings = await _unitOfWork.Bookings.FindAllAsync(b => b.RenterId == id || b.Listing.OwnerId == id);
+                _unitOfWork.Bookings.DeleteRange(userBookings);
+
+                var userListings = await _unitOfWork.Listings.FindAllAsync(l => l.OwnerId == id);
+                _unitOfWork.Listings.DeleteRange(userListings);
+
+                var reportsAsReporter = await _unitOfWork.Reports.FindAllAsync(r => r.ReporterUserId == id);
+                var reportsAsReported = await _unitOfWork.Reports.FindAllAsync(r => r.ReportedUserId == id);
+                _unitOfWork.Reports.DeleteRange(reportsAsReporter);
+                _unitOfWork.Reports.DeleteRange(reportsAsReported);
+
+                // حذف المفضلة
+                var userFavorites = await _unitOfWork.Favorites.FindAllAsync(f => f.UserId == id);
+                _unitOfWork.Favorites.DeleteRange(userFavorites);
+
+                // حذف الإشعارات
+                var userNotifications = await _unitOfWork.Notifications.FindAllAsync(n => n.UserId == id);
+                _unitOfWork.Notifications.DeleteRange(userNotifications);
+
+                // حذف رسائل المحادثات
+                var userMessages = await _unitOfWork.Messages.FindAllAsync(m => m.SenderId == id || m.ReceiverId == id);
+                _unitOfWork.Messages.DeleteRange(userMessages);
+
+                await _unitOfWork.CompleteAsync();
+
+                var result = await _userManager.DeleteAsync(user);
+                if (result.Succeeded)
+                {
+                    await _unitOfWork.CommitTransactionAsync();
+                    TempData["Success"] = $"User {user.Name} and all related data have been permanently deleted.";
+                }
+                else
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    TempData["Error"] = "Failed to delete user.";
+                }
             }
-            else
+            catch (Exception ex)
             {
-                TempData["Error"] = "Failed to delete user.";
+                await _unitOfWork.RollbackTransactionAsync();
+                TempData["Error"] = $"An error occurred: {ex.Message}";
             }
 
             return RedirectToAction(nameof(Users));
         }
 
-        // ======================== إدارة الإعلانات ========================
+        // ======================== Listings Management ========================
         public async Task<IActionResult> Listings()
         {
-            var listings = await _context.Listings
-                .Include(l => l.Category)
-                .Include(l => l.Owner)
-                .OrderByDescending(l => l.CreatedAt)
-                .ToListAsync();
-            return View(listings);
+            var listings = await _unitOfWork.Listings.FindAllAsync(
+                l => true,
+                l => l.Category,
+                l => l.Owner);
+
+            var orderedListings = listings.OrderByDescending(l => l.CreatedAt);
+            return View(orderedListings);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteListing(int id)
         {
-            var listing = await _context.Listings.FindAsync(id);
+            var listing = await _unitOfWork.Listings.GetByIdAsync(id);
             if (listing == null) return NotFound();
 
-            _context.Listings.Remove(listing);
-            await _context.SaveChangesAsync();
+            _unitOfWork.Listings.Delete(listing);
+            await _unitOfWork.CompleteAsync();
 
             TempData["Success"] = "Listing deleted successfully.";
             return RedirectToAction(nameof(Listings));
         }
 
-        // ======================== مراقبة العقود ========================
+        // ======================== Contracts Monitoring ========================
         public async Task<IActionResult> Contracts()
         {
-            var contracts = await _context.Contracts
-                .Include(c => c.Booking)
-                    .ThenInclude(b => b.Listing)
-                .OrderByDescending(c => c.CreatedAt)
-                .ToListAsync();
-            return View(contracts);
+            var contracts = await _unitOfWork.Contracts.FindAllAsync(
+                c => true,
+                c => c.Booking,
+                c => c.Booking.Listing,
+                c => c.Booking.Renter,
+                c => c.Booking.Listing.Owner);
+
+            var orderedContracts = contracts.OrderByDescending(c => c.CreatedAt);
+            return View(orderedContracts);
         }
 
-        // ======================== إدارة البلاغات ========================
+        // ======================== Reports Management ========================
         public async Task<IActionResult> Reports()
         {
-            var reports = await _context.Reports
-                .Include(r => r.ReporterUser)
-                .Include(r => r.ReportedUser)
-                .Include(r => r.ReportedListing)
-                    .ThenInclude(l => l.Category)
-                .OrderByDescending(r => r.CreatedAt)
-                .ToListAsync();
+            var reports = await _unitOfWork.Reports.FindAllAsync(
+                r => true,
+                r => r.ReporterUser,
+                r => r.ReportedUser,
+                r => r.ReportedListing,
+                r => r.ReportedListing.Category);
 
-            return View(reports);
+            var orderedReports = reports.OrderByDescending(r => r.CreatedAt);
+            return View(orderedReports);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ResolveReport(int id)
         {
-            var report = await _context.Reports.FindAsync(id);
+            var report = await _unitOfWork.Reports.GetByIdAsync(id);
             if (report == null) return NotFound();
 
             var admin = await _userManager.GetUserAsync(User);
@@ -156,7 +202,8 @@ namespace SW_Project.Controllers
             report.ResolvedAt = DateTime.UtcNow;
             report.ResolvedByAdminId = admin?.Id;
 
-            await _context.SaveChangesAsync();
+            _unitOfWork.Reports.Update(report);
+            await _unitOfWork.CompleteAsync();
 
             TempData["Success"] = "Report resolved successfully.";
             return RedirectToAction(nameof(Reports));
@@ -166,14 +213,49 @@ namespace SW_Project.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteReport(int id)
         {
-            var report = await _context.Reports.FindAsync(id);
-            if (report == null) return NotFound();
-
-            _context.Reports.Remove(report);
-            await _context.SaveChangesAsync();
+            await _unitOfWork.Reports.DeleteByIdAsync(id);
+            await _unitOfWork.CompleteAsync();
 
             TempData["Success"] = "Report deleted successfully.";
             return RedirectToAction(nameof(Reports));
+        }
+
+        // ======================== Reviews Management (إضافي) ========================
+        public async Task<IActionResult> Reviews()
+        {
+            var reviews = await _unitOfWork.Reviews.FindAllAsync(
+                r => true,
+                r => r.Reviewer,
+                r => r.Reviewee,
+                r => r.Booking,
+                r => r.Booking.Listing);
+
+            var orderedReviews = reviews.OrderByDescending(r => r.CreatedAt);
+            return View(orderedReviews);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteReview(int id)
+        {
+            await _unitOfWork.Reviews.DeleteByIdAsync(id);
+            await _unitOfWork.CompleteAsync();
+
+            TempData["Success"] = "Review deleted successfully.";
+            return RedirectToAction(nameof(Reviews));
+        }
+
+        // ======================== Bookings Management (إضافي) ========================
+        public async Task<IActionResult> AllBookings()
+        {
+            var bookings = await _unitOfWork.Bookings.FindAllAsync(
+                b => true,
+                b => b.Listing,
+                b => b.Renter,
+                b => b.Listing.Owner);
+
+            var orderedBookings = bookings.OrderByDescending(b => b.CreatedAt);
+            return View(orderedBookings);
         }
     }
 }

@@ -2,24 +2,25 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.EntityFrameworkCore;
-using SW_Project.Data;
+using SW_Project.Interfaces;
 using SW_Project.Models;
 using SW_Project.ViewModels.Listing;
-using System.Collections.Generic;   // ✅ أضيف لاستخدام List<int>
 
 namespace SW_Project.Controllers
 {
     [Authorize]
     public class ListingsController : Controller
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IWebHostEnvironment _webHostEnvironment;
 
-        public ListingsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IWebHostEnvironment webHostEnvironment)
+        public ListingsController(
+            IUnitOfWork unitOfWork,
+            UserManager<ApplicationUser> userManager,
+            IWebHostEnvironment webHostEnvironment)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
             _userManager = userManager;
             _webHostEnvironment = webHostEnvironment;
         }
@@ -35,10 +36,11 @@ namespace SW_Project.Controllers
             string sort = "newest")
         {
             int pageSize = 9;
-            var query = _context.Listings
-                .Include(l => l.Category)
-                .Include(l => l.ListingImages)
-                .Where(l => l.Status == "Available" && !l.IsDeleted);
+
+            var query = (await _unitOfWork.Listings.FindAllAsync(
+                l => l.Status == "Available" && !l.IsDeleted,
+                l => l.Category,
+                l => l.ListingImages)).AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(search))
                 query = query.Where(l => l.Title.Contains(search) || l.Description.Contains(search) || l.Location.Contains(search));
@@ -59,9 +61,10 @@ namespace SW_Project.Controllers
                 _ => query.OrderByDescending(l => l.CreatedAt)
             };
 
-            int total = await query.CountAsync();
-            var listings = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-            var categories = await _context.Categories.ToListAsync();
+            var total = query.Count();
+            var listings = query.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            var categories = await _unitOfWork.Categories.GetAllAsync();
 
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = (int)Math.Ceiling(total / (double)pageSize);
@@ -74,27 +77,24 @@ namespace SW_Project.Controllers
             ViewBag.Sort = sort;
             ViewBag.Categories = categories;
 
-            // ✅ إضافة قائمة المفضلة للمستخدم الحالي
-            if (User.Identity.IsAuthenticated)
+            if (User.Identity?.IsAuthenticated == true)
             {
                 var userId = _userManager.GetUserId(User);
-                var favoritedIds = await _context.Favorites
-                    .Where(f => f.UserId == userId)
-                    .Select(f => f.ListingId)
-                    .ToListAsync();
+                var favorites = await _unitOfWork.Favorites.FindAllAsync(f => f.UserId == userId);
+                var favoritedIds = favorites.Select(f => f.ListingId).ToList();
                 ViewBag.FavoritedIds = favoritedIds;
             }
             else
             {
                 ViewBag.FavoritedIds = new List<int>();
             }
-            var today = DateTime.Today;
-            var activeBookingIds = await _context.Bookings
-                .Where(b => (b.Status == "Accepted" || b.Status == "Active") &&
-                            b.StartDate <= today && b.EndDate >= today)
-                .Select(b => b.ListingId)
-                .ToListAsync();
 
+            var today = DateTime.Today;
+            var activeBookings = await _unitOfWork.Bookings.FindAllAsync(b =>
+                (b.Status == "Accepted" || b.Status == "Active") &&
+                b.StartDate <= today && b.EndDate >= today);
+
+            var activeBookingIds = activeBookings.Select(b => b.ListingId).ToList();
             ViewBag.ActiveBookedIds = activeBookingIds;
 
             return View(listings);
@@ -103,16 +103,15 @@ namespace SW_Project.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> Details(int id)
         {
-            var listing = await _context.Listings
-                .Include(l => l.Category)
-                .Include(l => l.Owner)
-                .Include(l => l.ListingImages)
-                .FirstOrDefaultAsync(l => l.Id == id && !l.IsDeleted);
+            var listing = await _unitOfWork.Listings.FindAsync(
+                l => l.Id == id && !l.IsDeleted,
+                l => l.Category,
+                l => l.Owner,
+                l => l.ListingImages);
 
             if (listing == null)
                 return NotFound();
 
-            // ✅ Fixed: Handle nullable Rating properly
             double ownerRating = 0;
             if (listing.Owner != null && listing.Owner.Rating > 0)
             {
@@ -141,7 +140,7 @@ namespace SW_Project.Controllers
                 ImageUrls = listing.ListingImages?.Select(i => i.ImagePath).ToList() ?? new List<string>(),
                 MainImageUrl = listing.ListingImages?.FirstOrDefault(i => i.IsMain)?.ImagePath ?? listing.ListingImages?.FirstOrDefault()?.ImagePath,
                 IsAvailable = listing.Status == "Available",
-                IsOwner = User.Identity.IsAuthenticated && listing.OwnerId == _userManager.GetUserId(User)
+                IsOwner = User.Identity?.IsAuthenticated == true && listing.OwnerId == _userManager.GetUserId(User)
             };
 
             return View(viewModel);
@@ -153,15 +152,18 @@ namespace SW_Project.Controllers
             {
                 return RedirectToAction("Index", "Admin");
             }
+
+            var categories = await _unitOfWork.Categories.GetAllAsync();
+
             var viewModel = new CreateListingVM
             {
-                Categories = await _context.Categories
-                    .Select(c => new SelectListItem
-                    {
-                        Value = c.Id.ToString(),
-                        Text = c.Name
-                    }).ToListAsync()
+                Categories = categories.Select(c => new SelectListItem
+                {
+                    Value = c.Id.ToString(),
+                    Text = c.Name
+                }).ToList()
             };
+
             return View(viewModel);
         }
 
@@ -173,22 +175,23 @@ namespace SW_Project.Controllers
             {
                 return RedirectToAction("Index", "Admin");
             }
+
             ModelState.Remove("Categories");
 
             if (!ModelState.IsValid)
             {
-                viewModel.Categories = await _context.Categories
-                    .Select(c => new SelectListItem
-                    {
-                        Value = c.Id.ToString(),
-                        Text = c.Name
-                    }).ToListAsync();
+                var categories = await _unitOfWork.Categories.GetAllAsync();
+                viewModel.Categories = categories.Select(c => new SelectListItem
+                {
+                    Value = c.Id.ToString(),
+                    Text = c.Name
+                }).ToList();
                 return View(viewModel);
             }
 
             var userId = _userManager.GetUserId(User);
 
-            var listing = new Models.Listing
+            var listing = new Listing
             {
                 Title = viewModel.Title,
                 Description = viewModel.Description,
@@ -202,10 +205,9 @@ namespace SW_Project.Controllers
                 IsDeleted = false
             };
 
-            _context.Listings.Add(listing);
-            await _context.SaveChangesAsync();
+            await _unitOfWork.Listings.AddAsync(listing);
+            await _unitOfWork.CompleteAsync();
 
-            // Save images
             if (viewModel.Images != null && viewModel.Images.Any())
             {
                 string uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "uploads", "listings");
@@ -230,11 +232,11 @@ namespace SW_Project.Controllers
                             IsMain = isFirst,
                             ListingId = listing.Id
                         };
-                        _context.ListingImages.Add(listingImage);
+                        await _unitOfWork.ListingImages.AddAsync(listingImage);
                         isFirst = false;
                     }
                 }
-                await _context.SaveChangesAsync();
+                await _unitOfWork.CompleteAsync();
             }
 
             TempData["Success"] = "Your listing has been posted!";
@@ -248,17 +250,19 @@ namespace SW_Project.Controllers
             {
                 return RedirectToAction("Index", "Admin");
             }
+
             var userId = _userManager.GetUserId(User);
-            var listings = await _context.Listings
-                .Include(l => l.Category)
-                .Include(l => l.ListingImages)
-                .Where(l => l.OwnerId == userId && !l.IsDeleted)
-                .OrderByDescending(l => l.CreatedAt)
-                .ToListAsync();
+
+            var listings = await _unitOfWork.Listings.FindAllAsync(
+                l => l.OwnerId == userId && !l.IsDeleted,
+                l => l.Category,
+                l => l.ListingImages);
+
+            var orderedListings = listings.OrderByDescending(l => l.CreatedAt);
 
             var viewModel = new MyListingsVM
             {
-                Listings = listings.Select(l => new ListingCardVM
+                Listings = orderedListings.Select(l => new ListingCardVM
                 {
                     Id = l.Id,
                     Title = l.Title,
@@ -271,13 +275,12 @@ namespace SW_Project.Controllers
                     CategoryIcon = l.Category?.Icon ?? "bi-box",
                     MainImageUrl = l.ListingImages?.FirstOrDefault(i => i.IsMain)?.ImagePath ?? l.ListingImages?.FirstOrDefault()?.ImagePath
                 }).ToList(),
-                TotalCount = listings.Count
+                TotalCount = listings.Count()
             };
 
             return View(viewModel);
         }
 
-        // GET: Delete confirmation
         [Authorize]
         public async Task<IActionResult> Delete(int id)
         {
@@ -285,11 +288,13 @@ namespace SW_Project.Controllers
             {
                 return RedirectToAction("Index", "Admin");
             }
+
             var userId = _userManager.GetUserId(User);
-            var listing = await _context.Listings
-                .Include(l => l.Category)
-                .Include(l => l.ListingImages)
-                .FirstOrDefaultAsync(l => l.Id == id && l.OwnerId == userId);
+
+            var listing = await _unitOfWork.Listings.FindAsync(
+                l => l.Id == id && l.OwnerId == userId,
+                l => l.Category,
+                l => l.ListingImages);
 
             if (listing == null)
             {
@@ -297,12 +302,11 @@ namespace SW_Project.Controllers
                 return RedirectToAction(nameof(MyListings));
             }
 
-            // ✅ جيب لو فيه حجز نشط
             var today = DateTime.Today;
-            var hasActiveBooking = await _context.Bookings
-                .AnyAsync(b => b.ListingId == id &&
-                               (b.Status == "Accepted" || b.Status == "Active") &&
-                               b.StartDate <= today && b.EndDate >= today);
+            var hasActiveBooking = await _unitOfWork.Bookings.ExistsAsync(b =>
+                b.ListingId == id &&
+                (b.Status == "Accepted" || b.Status == "Active") &&
+                b.StartDate <= today && b.EndDate >= today);
 
             ViewBag.HasActiveBooking = hasActiveBooking;
 
@@ -322,31 +326,30 @@ namespace SW_Project.Controllers
             return View(viewModel);
         }
 
-        // POST: Soft Delete
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         [Authorize]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var userId = _userManager.GetUserId(User);
-            var listing = await _context.Listings
-                .FirstOrDefaultAsync(l => l.Id == id && l.OwnerId == userId);
+
+            var listing = await _unitOfWork.Listings.FindAsync(l => l.Id == id && l.OwnerId == userId);
 
             if (listing == null)
             {
                 TempData["Error"] = "Listing not found or you don't have permission.";
                 return RedirectToAction(nameof(MyListings));
             }
-            // ✅ منع الحذف لو فيه حجز نشط
+
             var today = DateTime.Today;
-            var hasActiveBooking = await _context.Bookings
-                .AnyAsync(b => b.ListingId == id &&
-                               (b.Status == "Accepted" || b.Status == "Active") &&
-                               b.StartDate <= today && b.EndDate >= today);
+            var hasActiveBooking = await _unitOfWork.Bookings.ExistsAsync(b =>
+                b.ListingId == id &&
+                (b.Status == "Accepted" || b.Status == "Active") &&
+                b.StartDate <= today && b.EndDate >= today);
 
             if (hasActiveBooking)
             {
-                TempData["Error"] = "Cannot delete this listing because it has an active booking. Please wait until the booking period ends.";
+                TempData["Error"] = "Cannot delete this listing because it has an active booking.";
                 return RedirectToAction(nameof(MyListings));
             }
 
@@ -354,15 +357,13 @@ namespace SW_Project.Controllers
             listing.IsDeleted = true;
             listing.DeletedAt = DateTime.Now;
 
-            await _context.SaveChangesAsync();
+            _unitOfWork.Listings.Update(listing);
+            await _unitOfWork.CompleteAsync();
 
             TempData["Success"] = "Your listing has been deleted successfully.";
             return RedirectToAction(nameof(MyListings));
         }
 
-        // ========== EDIT ACTIONS ==========
-
-        // GET: عرض صفحة تعديل الـ Listing
         [Authorize]
         public async Task<IActionResult> Edit(int id)
         {
@@ -370,17 +371,21 @@ namespace SW_Project.Controllers
             {
                 return RedirectToAction("Index", "Admin");
             }
+
             var userId = _userManager.GetUserId(User);
-            var listing = await _context.Listings
-                .Include(l => l.Category)
-                .Include(l => l.ListingImages)
-                .FirstOrDefaultAsync(l => l.Id == id && l.OwnerId == userId);
+
+            var listing = await _unitOfWork.Listings.FindAsync(
+                l => l.Id == id && l.OwnerId == userId,
+                l => l.Category,
+                l => l.ListingImages);
 
             if (listing == null)
             {
                 TempData["Error"] = "Listing not found or you don't have permission.";
                 return RedirectToAction(nameof(MyListings));
             }
+
+            var categories = await _unitOfWork.Categories.GetAllAsync();
 
             var viewModel = new EditListingVM
             {
@@ -393,19 +398,17 @@ namespace SW_Project.Controllers
                 CategoryId = listing.CategoryId,
                 Status = listing.Status,
                 ExistingImages = listing.ListingImages?.Select(i => i.ImagePath).ToList() ?? new List<string>(),
-                Categories = await _context.Categories
-                    .Select(c => new SelectListItem
-                    {
-                        Value = c.Id.ToString(),
-                        Text = c.Name,
-                        Selected = c.Id == listing.CategoryId
-                    }).ToListAsync()
+                Categories = categories.Select(c => new SelectListItem
+                {
+                    Value = c.Id.ToString(),
+                    Text = c.Name,
+                    Selected = c.Id == listing.CategoryId
+                }).ToList()
             };
 
             return View(viewModel);
         }
 
-        // POST: تحديث الـ Listing
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize]
@@ -417,9 +420,10 @@ namespace SW_Project.Controllers
             }
 
             var userId = _userManager.GetUserId(User);
-            var listing = await _context.Listings
-                .Include(l => l.ListingImages)
-                .FirstOrDefaultAsync(l => l.Id == id && l.OwnerId == userId);
+
+            var listing = await _unitOfWork.Listings.FindAsync(
+                l => l.Id == id && l.OwnerId == userId,
+                l => l.ListingImages);
 
             if (listing == null)
             {
@@ -432,13 +436,13 @@ namespace SW_Project.Controllers
 
             if (!ModelState.IsValid)
             {
-                viewModel.Categories = await _context.Categories
-                    .Select(c => new SelectListItem
-                    {
-                        Value = c.Id.ToString(),
-                        Text = c.Name,
-                        Selected = c.Id == viewModel.CategoryId
-                    }).ToListAsync();
+                var categories = await _unitOfWork.Categories.GetAllAsync();
+                viewModel.Categories = categories.Select(c => new SelectListItem
+                {
+                    Value = c.Id.ToString(),
+                    Text = c.Name,
+                    Selected = c.Id == viewModel.CategoryId
+                }).ToList();
                 return View(viewModel);
             }
 
@@ -456,6 +460,9 @@ namespace SW_Project.Controllers
                 if (!Directory.Exists(uploadsFolder))
                     Directory.CreateDirectory(uploadsFolder);
 
+                var existingImages = listing.ListingImages?.ToList() ?? new List<ListingImage>();
+                bool hasImages = existingImages.Any();
+
                 foreach (var img in viewModel.NewImages)
                 {
                     if (img.Length > 0)
@@ -470,15 +477,17 @@ namespace SW_Project.Controllers
                         var listingImage = new ListingImage
                         {
                             ImagePath = "/uploads/listings/" + uniqueFileName,
-                            IsMain = !listing.ListingImages.Any(),
+                            IsMain = !hasImages,
                             ListingId = listing.Id
                         };
-                        _context.ListingImages.Add(listingImage);
+                        await _unitOfWork.ListingImages.AddAsync(listingImage);
+                        hasImages = true;
                     }
                 }
             }
 
-            await _context.SaveChangesAsync();
+            _unitOfWork.Listings.Update(listing);
+            await _unitOfWork.CompleteAsync();
 
             TempData["Success"] = "Your listing has been updated successfully!";
             return RedirectToAction("Details", new { id = listing.Id });

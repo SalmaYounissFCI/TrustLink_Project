@@ -1,48 +1,46 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SW_Project.Data;
+using SW_Project.Interfaces;
 using SW_Project.Models;
-using SW_Project.ViewModels.Dashboard;   
-using System;
-using System.Linq;
-using System.Threading.Tasks;
+using SW_Project.ViewModels.Dashboard;
 
 namespace SW_Project.Controllers
 {
     [Authorize]
     public class DashboardController : Controller
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly UserManager<ApplicationUser> _userManager;
 
-        public DashboardController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+        public DashboardController(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
             _userManager = userManager;
         }
 
         public async Task<IActionResult> Index()
         {
             var userId = _userManager.GetUserId(User);
-            var user = await _userManager.FindByIdAsync(userId);
+            var user = await _unitOfWork.Users.GetByIdAsync(userId);
 
-            var activeListingsCount = await _context.Listings
-                .CountAsync(l => l.OwnerId == userId && l.Status == "Available" && !l.IsDeleted);
+            var activeListingsCount = await _unitOfWork.Listings.CountAsync(
+                l => l.OwnerId == userId && l.Status == "Available" && !l.IsDeleted);
 
-            var activeContractsCount = await _context.Contracts
-                .CountAsync(c => (c.PartyAId == userId || c.PartyBId == userId) && c.Status == "Active");
+            var activeContractsCount = await _unitOfWork.Contracts.CountAsync(
+                c => (c.PartyAId == userId || c.PartyBId == userId) && c.Status == "Active");
 
-            var totalBookingsCount = await _context.Bookings
-                .CountAsync(b => b.RenterId == userId || b.Listing.OwnerId == userId);
+            var totalBookingsCount = await _unitOfWork.Bookings.CountAsync(
+                b => b.RenterId == userId || b.Listing.OwnerId == userId);
 
             var userRating = user?.Rating ?? 0;
 
-            // ✅ استخدم RecentBookingDTO من الـ ViewModel
-            var recentBookings = await _context.Bookings
-                .Include(b => b.Listing)
-                .Where(b => b.RenterId == userId || b.Listing.OwnerId == userId)
+            // Recent bookings
+            var recentBookingsList = await _unitOfWork.Bookings.FindAllAsync(
+                b => b.RenterId == userId || b.Listing.OwnerId == userId,
+                b => b.Listing);
+
+            var recentBookings = recentBookingsList
                 .OrderByDescending(b => b.CreatedAt)
                 .Take(5)
                 .Select(b => new RecentBookingDTO
@@ -53,14 +51,16 @@ namespace SW_Project.Controllers
                     Status = b.Status,
                     TotalPrice = b.TotalPrice,
                     Role = b.RenterId == userId ? "Renter" : "Owner"
-                })
-                .ToListAsync();
+                }).ToList();
 
-            var recentContracts = await _context.Contracts
-                .Include(c => c.Booking)
-                    .ThenInclude(b => b.Listing)
-                .Include(c => c.Booking.Renter)
-                .Where(c => c.PartyAId == userId || c.PartyBId == userId)
+            // Recent contracts
+            var recentContractsList = await _unitOfWork.Contracts.FindAllAsync(
+                c => c.PartyAId == userId || c.PartyBId == userId,
+                c => c.Booking,
+                c => c.Booking.Listing,
+                c => c.Booking.Renter);
+
+            var recentContracts = recentContractsList
                 .OrderByDescending(c => c.CreatedAt)
                 .Take(5)
                 .Select(c => new RecentContractDTO
@@ -70,10 +70,55 @@ namespace SW_Project.Controllers
                     CreatedAt = c.CreatedAt,
                     Status = c.Status,
                     OtherPartyName = c.PartyAId == userId ?
-                        (c.Booking.Renter.Name ?? "Unknown") :
-                        (c.Booking.Listing.Owner.Name ?? "Unknown")
-                })
-                .ToListAsync();
+                        (c.Booking.Renter?.Name ?? "Unknown") :
+                        (c.Booking.Listing.Owner?.Name ?? "Unknown")
+                }).ToList();
+
+            // Recent reviews given
+            var recentReviewsGiven = await _unitOfWork.Reviews.FindAllAsync(
+                r => r.ReviewerId == userId,
+                r => r.Booking,
+                r => r.Booking.Listing,
+                r => r.Reviewee);
+
+            var recentReviews = recentReviewsGiven
+                .OrderByDescending(r => r.CreatedAt)
+                .Take(5)
+                .Select(r => new RecentReviewDTO
+                {
+                    Id = r.Id,
+                    ListingTitle = r.Booking.Listing.Title,
+                    ReviewerName = r.Reviewer?.Name ?? "You",
+                    RevieweeName = r.Reviewee?.Name ?? "User",
+                    Rating = r.Rating,
+                    Comment = r.Comment,
+                    CreatedAt = r.CreatedAt,
+                    Role = "Given"
+                }).ToList();
+
+            // Recent reviews received
+            var recentReviewsReceivedList = await _unitOfWork.Reviews.FindAllAsync(
+                r => r.RevieweeId == userId,
+                r => r.Booking,
+                r => r.Booking.Listing,
+                r => r.Reviewer);
+
+            var recentReviewsReceived = recentReviewsReceivedList
+                .OrderByDescending(r => r.CreatedAt)
+                .Take(3)
+                .Select(r => new RecentReviewDTO
+                {
+                    Id = r.Id,
+                    ListingTitle = r.Booking.Listing.Title,
+                    ReviewerName = r.Reviewer?.Name ?? "Someone",
+                    RevieweeName = r.Reviewee?.Name ?? "You",
+                    Rating = r.Rating,
+                    Comment = r.Comment,
+                    CreatedAt = r.CreatedAt,
+                    Role = "Received"
+                }).ToList();
+
+            recentReviews.AddRange(recentReviewsReceived);
 
             var viewModel = new DashboardViewModel
             {
@@ -82,56 +127,12 @@ namespace SW_Project.Controllers
                 ActiveContractsCount = activeContractsCount,
                 TotalBookingsCount = totalBookingsCount,
                 UserRating = userRating,
-                RecentBookings = recentBookings ?? new List<RecentBookingDTO>(),
-                RecentContracts = recentContracts ?? new List<RecentContractDTO>()
+                RecentBookings = recentBookings,
+                RecentContracts = recentContracts,
+                RecentReviews = recentReviews
             };
-            //  جلب آخر 5 تقييمات كتبها المستخدم
-            var recentReviews = await _context.Reviews
-                .Include(r => r.Booking)
-                    .ThenInclude(b => b.Listing)
-                .Include(r => r.Reviewee)
-                .Where(r => r.ReviewerId == userId)
-                .OrderByDescending(r => r.CreatedAt)
-                .Take(5)
-                .Select(r => new RecentReviewDTO
-                {
-                    Id = r.Id,
-                    ListingTitle = r.Booking.Listing.Title,
-                    ReviewerName = r.Reviewer.Name ?? "You",
-                    RevieweeName = r.Reviewee.Name ?? "User",
-                    Rating = r.Rating,
-                    Comment = r.Comment,
-                    CreatedAt = r.CreatedAt,
-                    Role = "Given"
-                })
-                .ToListAsync();
-
-            //مان جيب آخر 5 تقييمات استقبلها المستخدم )
-            var recentReceivedReviews = await _context.Reviews
-                .Include(r => r.Booking)
-                    .ThenInclude(b => b.Listing)
-                .Include(r => r.Reviewer)
-                .Where(r => r.RevieweeId == userId)
-                .OrderByDescending(r => r.CreatedAt)
-                .Take(3)
-                .Select(r => new RecentReviewDTO
-                {
-                    Id = r.Id,
-                    ListingTitle = r.Booking.Listing.Title,
-                    ReviewerName = r.Reviewer.Name ?? "Someone",
-                    RevieweeName = r.Reviewee.Name ?? "You",
-                    Rating = r.Rating,
-                    Comment = r.Comment,
-                    CreatedAt = r.CreatedAt,
-                    Role = "Received"
-                })
-                .ToListAsync();
-
-            viewModel.RecentReviews = recentReviews;
 
             return View(viewModel);
-
         }
-
     }
 }

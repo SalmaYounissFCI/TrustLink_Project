@@ -2,10 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
-using SW_Project.Data;
+using SW_Project.Interfaces;
 using SW_Project.Models;
-using System.Linq;
-using System.Threading.Tasks;
 using SW_Project.ViewModels.Account;
 
 namespace SW_Project.Controllers
@@ -14,16 +12,16 @@ namespace SW_Project.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
-        private readonly ApplicationDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
 
         public AccountController(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
-            ApplicationDbContext context)
+            IUnitOfWork unitOfWork)
         {
             _userManager = userManager;
             _signInManager = signInManager;
-            _context = context;
+            _unitOfWork = unitOfWork;
         }
 
         [HttpGet]
@@ -56,13 +54,11 @@ namespace SW_Project.Controllers
             {
                 TempData["Success"] = $"Welcome back, {user.Name}!";
 
-                // ✅ لو Admin يروح على Admin Dashboard
                 if (await _userManager.IsInRoleAsync(user, "Admin"))
                 {
                     return RedirectToAction("Index", "Admin");
                 }
 
-                // ✅ لو مستخدم عادي يروح على Profile بتاعه
                 return RedirectToAction("Profile", "Account");
             }
 
@@ -112,7 +108,6 @@ namespace SW_Project.Controllers
                 foreach (var error in result.Errors)
                 {
                     ModelState.AddModelError(string.Empty, error.Description);
-                    System.Diagnostics.Debug.WriteLine($"ERROR: {error.Description}");
                 }
                 return View(model);
             }
@@ -125,13 +120,11 @@ namespace SW_Project.Controllers
             if (user == null)
                 return RedirectToAction("Login");
 
-            // ✅ لو Admin يروح على صفحة Profile خاصة بالـ Admin
             if (await _userManager.IsInRoleAsync(user, "Admin"))
             {
                 return View("~/Views/Admin/Profile.cshtml");
             }
 
-            // المستخدم العادي يروح على Profile العادي
             var profileVM = await MapToProfileVM(user);
             return View(profileVM);
         }
@@ -177,7 +170,6 @@ namespace SW_Project.Controllers
                 {
                     TempData["Success"] = $"Welcome back, {user.Name}!";
 
-                    // لو المستخدم Admin يروح على Admin Dashboard
                     if (await _userManager.IsInRoleAsync(user, "Admin"))
                     {
                         return RedirectToAction("Index", "Admin");
@@ -205,47 +197,33 @@ namespace SW_Project.Controllers
             return RedirectToAction("Index", "Home");
         }
 
-        // Private helper method to map ApplicationUser to ProfileVM
-        // Private helper method to map ApplicationUser to ProfileVM
         private async Task<ProfileVM> MapToProfileVM(ApplicationUser user)
         {
             // جلب إعلانات المستخدم
-            var listings = await _context.Listings
-                .Include(l => l.Category)
-                .Include(l => l.ListingImages)
-                .Where(l => l.OwnerId == user.Id && (l.IsDeleted == false || l.IsDeleted == null))
-                .OrderByDescending(l => l.CreatedAt)
-                .ToListAsync();
+            var listings = await _unitOfWork.Listings
+                .FindAllAsync(l => l.OwnerId == user.Id && (l.IsDeleted == false || l.IsDeleted == null),
+                    l => l.Category, l => l.ListingImages);
 
-            // جلب الحجوزات (كمستأجر)
-            var bookingsAsRenter = await _context.Bookings
-                .Include(b => b.Listing)
-                .ThenInclude(l => l.ListingImages)
-                .Include(b => b.Listing)
-                .ThenInclude(l => l.Owner)
-                .Where(b => b.RenterId == user.Id)
-                .ToListAsync();
+            // جلب الحجوزات كمستأجر
+            var bookingsAsRenter = await _unitOfWork.Bookings
+                .FindAllAsync(b => b.RenterId == user.Id,
+                    b => b.Listing, b => b.Listing.ListingImages, b => b.Listing.Owner);
 
-            // جلب الحجوزات (كمالك)
-            var bookingsAsOwner = await _context.Bookings
-                .Include(b => b.Listing)
-                .Include(b => b.Renter)
-                .Where(b => b.Listing.OwnerId == user.Id)
-                .ToListAsync();
+            // جلب الحجوزات كمالك
+            var bookingsAsOwner = await _unitOfWork.Bookings
+                .FindAllAsync(b => b.Listing.OwnerId == user.Id,
+                    b => b.Listing, b => b.Renter);
 
             // جلب العقود
-            var contracts = await _context.Contracts
-                .Include(c => c.Booking)
-                .ThenInclude(b => b.Listing)
-                .Where(c => c.PartyAId == user.Id || c.PartyBId == user.Id)
-                .ToListAsync();
+            var contracts = await _unitOfWork.Contracts
+                .FindAllAsync(c => c.PartyAId == user.Id || c.PartyBId == user.Id,
+                    c => c.Booking, c => c.Booking.Listing);
 
             // حساب الإحصائيات
             int activeListingsCount = listings.Count(l => l.Status == "Available");
-            int totalBookingsCount = bookingsAsRenter.Count + bookingsAsOwner.Count;
+            int totalBookingsCount = bookingsAsRenter.Count() + bookingsAsOwner.Count();
             int activeContractsCount = contracts.Count(c => c.Status == "Active");
 
-            // تحويل الـ Listings إلى ListingCardVM
             var listingCards = listings.Select(l => new ListingCardVM
             {
                 Id = l.Id,
@@ -259,7 +237,6 @@ namespace SW_Project.Controllers
                 CreatedAt = l.CreatedAt
             }).ToList();
 
-            // تحويل الـ Bookings إلى BookingCardVM
             var bookingCards = new List<BookingCardVM>();
 
             foreach (var b in bookingsAsRenter)
@@ -298,7 +275,6 @@ namespace SW_Project.Controllers
 
             bookingCards = bookingCards.OrderByDescending(b => b.StartDate).ToList();
 
-            // تحويل الـ Contracts إلى ContractCardVM
             var contractCards = contracts.Select(c => new ContractCardVM
             {
                 Id = c.Id,
@@ -307,10 +283,12 @@ namespace SW_Project.Controllers
                 Status = c.Status,
                 CreatedAt = c.CreatedAt,
                 OtherPartyName = c.PartyAId == user.Id ?
-                    _context.Users.Find(c.PartyBId)?.Name :
-                    _context.Users.Find(c.PartyAId)?.Name,
+                    (_unitOfWork.Users.GetByIdAsync(c.PartyBId).Result?.Name) :
+                    (_unitOfWork.Users.GetByIdAsync(c.PartyAId).Result?.Name),
                 IsSigned = c.Status == "Active"
             }).ToList();
+
+            var favoritesCount = await _unitOfWork.Favorites.CountAsync(f => f.UserId == user.Id);
 
             return new ProfileVM
             {
@@ -325,7 +303,7 @@ namespace SW_Project.Controllers
                 ActiveListingsCount = activeListingsCount,
                 TotalBookingsCount = totalBookingsCount,
                 ActiveContractsCount = activeContractsCount,
-                FavoritesCount = 0,
+                FavoritesCount = favoritesCount,
                 MyListings = listingCards,
                 MyBookings = bookingCards,
                 MyContracts = contractCards
