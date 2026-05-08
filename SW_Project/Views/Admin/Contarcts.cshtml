@@ -1,0 +1,69 @@
+﻿@model List<SW_Project.Models.Contract>
+@using Microsoft.EntityFrameworkCore
+@inject SW_Project.Data.ApplicationDbContext _context
+@{
+    ViewData["Title"] = "Contracts - Admin";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Contracts Management</h2>
+        <a href="/Admin" class="btn btn-secondary">← Back to Dashboard</a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Title</th>
+                            <th>Party A (Owner)</th>
+                            <th>Party B (Renter)</th>
+                            <th>Status</th>
+                            <th>Created At</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var contract in Model)
+                        {
+                            var partyA = _context.Users.FirstOrDefault(u => u.Id == contract.PartyAId);
+                            var partyB = _context.Users.FirstOrDefault(u => u.Id == contract.PartyBId);
+
+                            <tr>
+                                <td>@contract.Id</td>
+                                <td>@contract.Title</td>
+                                <td>@(partyA?.Name ?? "Unknown")</td>
+                                <td>@(partyB?.Name ?? "Unknown")</td>
+                                <td>
+                                    @if (contract.Status == "Active")
+                                    {
+                                        <span class="badge bg-success">Active</span>
+                                    }
+                                    else if (contract.Status == "Draft")
+                                    {
+                                        <span class="badge bg-warning">Draft</span>
+                                    }
+                                    else if (contract.Status == "Expired")
+                                    {
+                                        <span class="badge bg-secondary">Expired</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-info">@(contract.Status)</span>
+                                    }
+                                </td>
+                                <td>@(contract.CreatedAt.ToString("yyyy-MM-dd"))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (!Model.Any())
+            {
+                <div class="text-center py-5 text-muted">No contracts found.</div>
+            }
+        </div>
+    </div>
+</div>

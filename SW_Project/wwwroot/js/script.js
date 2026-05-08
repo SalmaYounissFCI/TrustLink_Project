@@ -245,3 +245,52 @@ document.addEventListener('click', function (e) {
     }, { passive: true });
     btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 })();
+function updateNotificationCount() {
+    fetch('/Notifications/GetUnreadCount')
+        .then(res => res.json())
+        .then(count => {
+            const badge = document.getElementById('notif-badge');
+            const dot = document.getElementById('notif-dot');
+            const bell = document.getElementById('notificationBell');
+
+            if (badge) {
+                if (count > 0) {
+                    badge.textContent = count > 99 ? '99+' : count;
+                    badge.style.display = 'flex';
+
+                    // ✅ إظهار النقطة الحمراء
+                    if (dot) dot.style.display = 'block';
+
+                    // ✅ إضافة تأثير التوهج والاهتزاز للأيقونة
+                    if (bell && !bell.classList.contains('has-notif')) {
+                        bell.classList.add('has-notif');
+
+                        // إزالة الاهتزاز بعد 2 ثانية (يبقى التوهج)
+                        setTimeout(() => {
+                            bell.style.animation = 'none';
+                            setTimeout(() => {
+                                bell.style.animation = '';
+                            }, 100);
+                        }, 2000);
+                    }
+                } else {
+                    badge.style.display = 'none';
+                    if (dot) dot.style.display = 'none';
+                    if (bell) bell.classList.remove('has-notif');
+                }
+            }
+        });
+}
+
+// تحديث عند تحميل الصفحة
+updateNotificationCount();
+
+// تحديث كل 30 ثانية
+setInterval(updateNotificationCount, 30000);
+// عند النقر على الجرس، أزل تأثير التوهج مؤقتاً
+document.getElementById('notificationBell')?.addEventListener('click', function () {
+    const dot = document.getElementById('notif-dot');
+    const bell = document.getElementById('notificationBell');
+    if (dot) dot.style.display = 'none';
+    if (bell) bell.classList.remove('has-notif');
+});

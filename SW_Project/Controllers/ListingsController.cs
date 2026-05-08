@@ -149,6 +149,10 @@ namespace SW_Project.Controllers
 
         public async Task<IActionResult> Create()
         {
+            if (User.IsInRole("Admin"))
+            {
+                return RedirectToAction("Index", "Admin");
+            }
             var viewModel = new CreateListingVM
             {
                 Categories = await _context.Categories
@@ -165,6 +169,10 @@ namespace SW_Project.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(CreateListingVM viewModel)
         {
+            if (User.IsInRole("Admin"))
+            {
+                return RedirectToAction("Index", "Admin");
+            }
             ModelState.Remove("Categories");
 
             if (!ModelState.IsValid)
@@ -236,6 +244,10 @@ namespace SW_Project.Controllers
         [Authorize]
         public async Task<IActionResult> MyListings()
         {
+            if (User.IsInRole("Admin"))
+            {
+                return RedirectToAction("Index", "Admin");
+            }
             var userId = _userManager.GetUserId(User);
             var listings = await _context.Listings
                 .Include(l => l.Category)
@@ -269,6 +281,10 @@ namespace SW_Project.Controllers
         [Authorize]
         public async Task<IActionResult> Delete(int id)
         {
+            if (User.IsInRole("Admin"))
+            {
+                return RedirectToAction("Index", "Admin");
+            }
             var userId = _userManager.GetUserId(User);
             var listing = await _context.Listings
                 .Include(l => l.Category)
@@ -350,6 +366,10 @@ namespace SW_Project.Controllers
         [Authorize]
         public async Task<IActionResult> Edit(int id)
         {
+            if (User.IsInRole("Admin"))
+            {
+                return RedirectToAction("Index", "Admin");
+            }
             var userId = _userManager.GetUserId(User);
             var listing = await _context.Listings
                 .Include(l => l.Category)

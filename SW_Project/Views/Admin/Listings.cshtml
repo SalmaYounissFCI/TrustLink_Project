@@ -1,0 +1,54 @@
+﻿@model List<SW_Project.Models.Listing>
+@{
+    ViewData["Title"] = "Manage Listings - Admin";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Listings Management</h2>
+        <a href="/Admin" class="btn btn-secondary">← Back to Dashboard</a>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Title</th>
+                            <th>Owner</th>
+                            <th>Price/Day</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var listing in Model)
+                        {
+                            <tr>
+                                <td>@listing.Title</td>
+                                <td>@listing.Owner?.Name</td>
+                                <td>$@listing.PricePerDay</td>
+                                <td><span class="badge bg-info">@listing.Status</span></td>
+                                <td>@listing.CreatedAt.ToString("yyyy-MM-dd")</td>
+                                <td>
+                                    <form method="post" asp-action="DeleteListing"
+                                          onsubmit="return confirm('Delete this listing?');">
+                                        <input type="hidden" name="id" value="@listing.Id" />
+                                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

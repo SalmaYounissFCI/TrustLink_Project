@@ -55,6 +55,14 @@ namespace SW_Project.Controllers
             if (result.Succeeded)
             {
                 TempData["Success"] = $"Welcome back, {user.Name}!";
+
+                // ✅ لو Admin يروح على Admin Dashboard
+                if (await _userManager.IsInRoleAsync(user, "Admin"))
+                {
+                    return RedirectToAction("Index", "Admin");
+                }
+
+                // ✅ لو مستخدم عادي يروح على Profile بتاعه
                 return RedirectToAction("Profile", "Account");
             }
 
@@ -117,6 +125,13 @@ namespace SW_Project.Controllers
             if (user == null)
                 return RedirectToAction("Login");
 
+            // ✅ لو Admin يروح على صفحة Profile خاصة بالـ Admin
+            if (await _userManager.IsInRoleAsync(user, "Admin"))
+            {
+                return View("~/Views/Admin/Profile.cshtml");
+            }
+
+            // المستخدم العادي يروح على Profile العادي
             var profileVM = await MapToProfileVM(user);
             return View(profileVM);
         }
@@ -160,8 +175,15 @@ namespace SW_Project.Controllers
                 var result = await _userManager.UpdateAsync(user);
                 if (result.Succeeded)
                 {
-                    await _signInManager.RefreshSignInAsync(user);
-                    TempData["Success"] = "Profile updated successfully!";
+                    TempData["Success"] = $"Welcome back, {user.Name}!";
+
+                    // لو المستخدم Admin يروح على Admin Dashboard
+                    if (await _userManager.IsInRoleAsync(user, "Admin"))
+                    {
+                        return RedirectToAction("Index", "Admin");
+                    }
+
+                    return RedirectToAction("Profile", "Account");
                 }
                 else
                 {

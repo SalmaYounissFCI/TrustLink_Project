@@ -39,7 +39,6 @@ namespace SW_Project.Controllers
                 .OrderByDescending(b => b.CreatedAt)
                 .ToListAsync();
 
-            // جلب التقييمات اللي عملها المستخدم
             var userReviews = await _context.Reviews
                 .Where(r => r.ReviewerId == userId)
                 .ToDictionaryAsync(r => r.BookingId, r => true);
@@ -61,6 +60,7 @@ namespace SW_Project.Controllers
             ViewBag.UserId = userId;
             return View(viewModel);
         }
+
         public async Task<IActionResult> ReceivedBookings()
         {
             var userId = _userManager.GetUserId(User);
@@ -115,7 +115,6 @@ namespace SW_Project.Controllers
                 ModelState.AddModelError("EndDate", "End date must be after start date.");
             }
 
-
             var conflictingBooking = await _context.Bookings
                 .Where(b => b.ListingId == booking.ListingId &&
                             b.Status != "Rejected" &&
@@ -147,18 +146,17 @@ namespace SW_Project.Controllers
             _context.Bookings.Add(booking);
             await _context.SaveChangesAsync();
 
-            // إرسال إشعار للمالك
-            var ownerId = listing.OwnerId;
-            var notification = new Notification
+            // ✅ إشعار للمالك عند إنشاء حجز جديد (تمت الإضافة)
+            var ownerNotification = new Notification
             {
-                UserId = ownerId,
+                UserId = listing.OwnerId,
                 Message = $"New booking request for '{listing.Title}' from {booking.StartDate:dd/MM/yyyy} to {booking.EndDate:dd/MM/yyyy}.",
                 Type = "BookingRequest",
                 LinkUrl = "/Bookings/ReceivedBookings",
                 IsRead = false,
                 CreatedAt = DateTime.Now
             };
-            _context.Notifications.Add(notification);
+            _context.Notifications.Add(ownerNotification);
             await _context.SaveChangesAsync();
 
             TempData["Success"] = "Your booking request has been sent. The owner will review it.";
@@ -167,7 +165,6 @@ namespace SW_Project.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        
         public async Task<IActionResult> UpdateStatus(int id, string status)
         {
             var booking = await _context.Bookings
@@ -182,17 +179,26 @@ namespace SW_Project.Controllers
             if (booking.Listing.OwnerId != userId)
                 return Forbid();
 
-            // ✅ التحقق من أن status صحيح
             if (status != "Accepted" && status != "Rejected")
                 return BadRequest();
 
-            // ✅ تحديث حالة الحجز أولاً
             booking.Status = status;
             await _context.SaveChangesAsync();
 
-            // ✅ إذا كان القبول، قم بإنشاء العقد
+            // ✅ إشعار للمستأجر عند قبول أو رفض الحجز (تمت الإضافة)
             if (status == "Accepted")
             {
+                var renterNotification = new Notification
+                {
+                    UserId = booking.RenterId,
+                    Message = $"Your booking for '{booking.Listing.Title}' has been accepted! The contract is now being prepared.",
+                    Type = "BookingAccepted",
+                    LinkUrl = "/Bookings/MyBookings",
+                    IsRead = false,
+                    CreatedAt = DateTime.Now
+                };
+                _context.Notifications.Add(renterNotification);
+
                 var existingContract = await _context.Contracts
                     .FirstOrDefaultAsync(c => c.BookingId == booking.Id);
 
@@ -214,7 +220,7 @@ namespace SW_Project.Controllers
                         _context.Contracts.Add(contract);
                         await _context.SaveChangesAsync();
 
-                        // إشعارات للطرفين
+                        // ✅ إشعارات للطرفين بأن العقد جاهز (تمت الإضافة)
                         var notif1 = new Notification
                         {
                             UserId = contract.PartyAId,
@@ -240,17 +246,29 @@ namespace SW_Project.Controllers
                     }
                     catch (Exception ex)
                     {
-                        // تسجيل الخطأ للتصحيح
                         System.Diagnostics.Debug.WriteLine($"Error creating contract: {ex.Message}");
                         TempData["Error"] = "Contract could not be created. Please contact support.";
                     }
                 }
             }
+            else if (status == "Rejected")
+            {
+                var renterNotification = new Notification
+                {
+                    UserId = booking.RenterId,
+                    Message = $"Your booking for '{booking.Listing.Title}' has been rejected.",
+                    Type = "BookingRejected",
+                    LinkUrl = "/Bookings/MyBookings",
+                    IsRead = false,
+                    CreatedAt = DateTime.Now
+                };
+                _context.Notifications.Add(renterNotification);
+                await _context.SaveChangesAsync();
+            }
 
             TempData["Success"] = $"Booking has been {status.ToLower()}.";
             return RedirectToAction("ReceivedBookings");
         }
-
 
         private string GenerateContractTerms(Booking booking)
         {
@@ -259,27 +277,23 @@ namespace SW_Project.Controllers
 
             return $@"
                 This Rental Agreement is made on {DateTime.Now:MMMM dd, yyyy} between:
-                Owner:{listing.Owner?.Name ?? "Owner"}  
-                Renter:{booking.Renter?.Name ?? "Renter"}
+                Owner: {listing.Owner?.Name ?? "Owner"}  
+                Renter: {booking.Renter?.Name ?? "Renter"}
                 Property: '{listing.Title}'- '{listing.Description}'
-                Location:{listing.Location}
+                Location: {listing.Location}
                 
-                Term:From {booking.StartDate:MMMM dd, yyyy} to {booking.EndDate:MMMM dd, yyyy} ({days} days)
+                Term: From {booking.StartDate:MMMM dd, yyyy} to {booking.EndDate:MMMM dd, yyyy} ({days} days)
                 Rental Fee: ${listing.PricePerDay} per day → Total: ${booking.TotalPrice}
                 Deposit: ${listing.Deposit ?? 0}
-               Terms & Conditions:
+                Terms & Conditions:
                 1. The Renter agrees to use the item responsibly.
                 2. The Owner confirms the item is in good working condition.
                 3. Any damage beyond normal wear and tear will be deducted from the deposit.
                 4. Both parties agree to the terms outlined in this digital contract.
 
                 This document is legally binding upon electronic signature by both parties";
-            
-
-
-            
-
         }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Complete(int id)
