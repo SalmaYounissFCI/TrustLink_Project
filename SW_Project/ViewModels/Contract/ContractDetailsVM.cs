@@ -103,5 +103,6 @@ namespace SW_Project.ViewModels.Contract
         public bool IsCurrentUserPartyA { get; set; }
         public bool IsCurrentUserPartyB { get; set; }
         public bool CurrentUserHasSigned { get; set; }
+        public bool IsCurrentUserRenter { get; set; }
     }
 }

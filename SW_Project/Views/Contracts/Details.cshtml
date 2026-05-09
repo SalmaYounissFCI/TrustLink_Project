@@ -369,14 +369,13 @@
                 }
 
                 <!-- زرار الدفع (لو Active ومش مدفوع) -->
-                @if (isActive && !isPaid)
+                @if (isActive && !isPaid && Model.IsCurrentUserRenter)
                 {
                     <a asp-controller="Payment" asp-action="Checkout" asp-route-contractId="@Model.Id"
                        class="btn-gold-tl">
                         <i class="bi bi-credit-card"></i> Pay Now
                     </a>
                 }
-
                 <!-- رسالة الدفع المدفوع (لو Active ومدفوع) -->
                 @if (isActive && isPaid)
                 {

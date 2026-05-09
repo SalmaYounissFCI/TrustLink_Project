@@ -113,7 +113,7 @@ namespace SW_Project
                 }
 
                 // Create demo admin user
-                var adminEmail = "admin@trustlink.com";
+                var adminEmail = "owner@trustlink.com";
                 var adminUser = await userManager.FindByEmailAsync(adminEmail);
                 if (adminUser == null)
                 {

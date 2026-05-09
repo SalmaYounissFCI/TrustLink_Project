@@ -323,7 +323,7 @@
                                     <i class="bi bi-eye"></i> View
                                 </a>
 
-                                @if (contract.Status == "Active" && !contract.IsPaid)
+                                @if (contract.Status == "Active" && !contract.IsPaid && contract.IsCurrentUserRenter)
                                 {
                                     <a asp-controller="Payment" asp-action="Checkout" asp-route-contractId="@contract.Id"
                                        class="btn-pay-now">

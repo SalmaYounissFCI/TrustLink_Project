@@ -93,7 +93,9 @@ namespace SW_Project.Controllers
                 IsCurrentUserPartyA = userId == contract.PartyAId,
                 IsCurrentUserPartyB = userId == contract.PartyBId,
                 CurrentUserHasSigned = (userId == contract.PartyAId && partyASig != null) ||
-                                       (userId == contract.PartyBId && partyBSig != null)
+                                       (userId == contract.PartyBId && partyBSig != null),
+                                         IsCurrentUserRenter = contract.PartyBId == userId
+
             };
             ViewBag.IsPaid = isPaid;
 
@@ -281,7 +283,8 @@ namespace SW_Project.Controllers
                     IsSignedByMe = c.ContractSignatures.Any(s => s.UserId == userId),
                     IsSignedByOther = c.ContractSignatures.Count() == 2,
                     SignedAt = c.ContractSignatures.FirstOrDefault(s => s.UserId == userId)?.SignedAt,
-                      IsPaid = await _paymentService.IsContractPaidAsync(c.Id)
+                      IsPaid = await _paymentService.IsContractPaidAsync(c.Id),
+                       IsCurrentUserRenter = c.PartyBId == userId
                 });
             }
 

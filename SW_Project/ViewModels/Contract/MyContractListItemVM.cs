@@ -19,6 +19,7 @@ namespace SW_Project.ViewModels.Contract
         public bool IsSignedByOther { get; set; }
         public DateTime? SignedAt { get; set; }
 
+        public bool IsCurrentUserRenter { get; set; }
         public bool IsPaid { get; set; }
         public string StatusColor => Status switch
         {

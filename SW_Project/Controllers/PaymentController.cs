@@ -110,7 +110,7 @@ namespace SW_Project.Controllers
         [HttpGet]
         public async Task<IActionResult> Success(int contractId)
         {
-            // جيب آخر دفعة معلقة (مش محتاجة session_id)
+            // جيب آخر دفعة معلقة وحدثها لـ Paid
             var payments = await _unitOfWork.Payments
                 .FindAllAsync(p => p.ContractId == contractId && p.Status == "Pending");
             var payment = payments.OrderByDescending(p => p.CreatedAt).FirstOrDefault();
@@ -130,7 +130,9 @@ namespace SW_Project.Controllers
                 await _unitOfWork.CompleteAsync();
             }
 
-            return RedirectToAction("Details", "Contracts", new { id = contractId });
+     
+            ViewBag.ContractId = contractId;
+            return View();
         }
         // صفحة إلغاء الدفع
         [HttpGet]
