@@ -30,15 +30,15 @@ namespace SW_Project.Controllers
 
             if (listingId.HasValue)
             {
-                ViewBag.ReportType = "إعلان";
+                ViewBag.ReportType = "Listing";
             }
             else if (!string.IsNullOrEmpty(reportedUserId))
             {
-                ViewBag.ReportType = "مستخدم";
+                ViewBag.ReportType = "User";
             }
             else
             {
-                ViewBag.ReportType = "مخالفة";
+                ViewBag.ReportType = "Violation";
             }
 
             return View(vm);
@@ -72,7 +72,7 @@ namespace SW_Project.Controllers
             await _unitOfWork.Reports.AddAsync(report);
             await _unitOfWork.CompleteAsync();
 
-            TempData["SuccessMessage"] = "تم إرسال البلاغ بنجاح، سيقوم فريق الإدارة بمراجعته.";
+            TempData["SuccessMessage"] = "Your report has been submitted successfully. Our team will review it shortly.";
             return RedirectToAction("Index", "Home");
         }
 
@@ -86,7 +86,8 @@ namespace SW_Project.Controllers
                 r => r.ReportedListing,
                 r => r.ReportedListing.Category);
 
-            var orderedReports = reports.OrderByDescending(r => r.CreatedAt);
+            // ✅ Fixed: Added .ToList() to avoid OrderedEnumerable error
+            var orderedReports = reports.OrderByDescending(r => r.CreatedAt).ToList();
 
             var vm = orderedReports.Select(r => new ReportIndexVM
             {
@@ -97,13 +98,13 @@ namespace SW_Project.Controllers
                 CreatedAt = r.CreatedAt,
                 IsResolved = r.IsResolved,
                 ResolvedAt = r.ResolvedAt,
-                ResolvedByAdminEmail = null, // Would need to load admin user
+                ResolvedByAdminEmail = null,
                 ReportedListingId = r.ReportedListingId,
                 ReportedListingTitle = r.ReportedListing?.Title,
                 ReportedUserEmail = r.ReportedUser?.Email,
                 Type = r.ReportedListingId.HasValue ? "Listing" : (r.ReportedUserId != null ? "User" : "Other"),
-                ReportedInfo = r.ReportedListingId.HasValue ? $"إعلان: {r.ReportedListing?.Title}" :
-                              (r.ReportedUserId != null ? $"مستخدم: {r.ReportedUser?.Email}" : "عام")
+                ReportedInfo = r.ReportedListingId.HasValue ? $"Listing: {r.ReportedListing?.Title}" :
+                              (r.ReportedUserId != null ? $"User: {r.ReportedUser?.Email}" : "General")
             }).ToList();
 
             return View(vm);
@@ -128,7 +129,7 @@ namespace SW_Project.Controllers
             _unitOfWork.Reports.Update(report);
             await _unitOfWork.CompleteAsync();
 
-            TempData["SuccessMessage"] = "تم حل البلاغ بنجاح";
+            TempData["SuccessMessage"] = "Report has been resolved successfully.";
             return RedirectToAction(nameof(Index));
         }
 
@@ -140,7 +141,7 @@ namespace SW_Project.Controllers
             await _unitOfWork.Reports.DeleteByIdAsync(id);
             await _unitOfWork.CompleteAsync();
 
-            TempData["SuccessMessage"] = "تم حذف البلاغ بنجاح";
+            TempData["SuccessMessage"] = "Report has been deleted successfully.";
             return RedirectToAction(nameof(Index));
         }
     }

@@ -178,6 +178,19 @@ namespace SW_Project.Controllers
 
             ModelState.Remove("Categories");
 
+            // ✅ التحقق من وجود صورة في الإضافة الجديدة
+            if (viewModel.Images == null || !viewModel.Images.Any())
+            {
+                ModelState.AddModelError("Images", "Please upload at least one image");
+                var categories = await _unitOfWork.Categories.GetAllAsync();
+                viewModel.Categories = categories.Select(c => new SelectListItem
+                {
+                    Value = c.Id.ToString(),
+                    Text = c.Name
+                }).ToList();
+                return View(viewModel);
+            }
+
             if (!ModelState.IsValid)
             {
                 var categories = await _unitOfWork.Categories.GetAllAsync();
@@ -208,6 +221,7 @@ namespace SW_Project.Controllers
             await _unitOfWork.Listings.AddAsync(listing);
             await _unitOfWork.CompleteAsync();
 
+            // ✅ حفظ الصور (لازم هنا لأن Create)
             if (viewModel.Images != null && viewModel.Images.Any())
             {
                 string uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "uploads", "listings");
@@ -258,7 +272,8 @@ namespace SW_Project.Controllers
                 l => l.Category,
                 l => l.ListingImages);
 
-            var orderedListings = listings.OrderByDescending(l => l.CreatedAt);
+            // ✅ إضافة ToList() لتجنب خطأ OrderedEnumerable
+            var orderedListings = listings.OrderByDescending(l => l.CreatedAt).ToList();
 
             var viewModel = new MyListingsVM
             {
@@ -431,8 +446,10 @@ namespace SW_Project.Controllers
                 return RedirectToAction(nameof(MyListings));
             }
 
+            // ✅ إزالة التحقق من NewImages لأنها مش مطلوبة في التعديل
             ModelState.Remove("Categories");
             ModelState.Remove("ExistingImages");
+            ModelState.Remove("NewImages");  // 🔥 دي المهمة جداً
 
             if (!ModelState.IsValid)
             {
@@ -446,6 +463,7 @@ namespace SW_Project.Controllers
                 return View(viewModel);
             }
 
+            // ✅ تحديث البيانات الأساسية
             listing.Title = viewModel.Title;
             listing.Description = viewModel.Description;
             listing.PricePerDay = viewModel.PricePerDay;
@@ -454,6 +472,7 @@ namespace SW_Project.Controllers
             listing.CategoryId = viewModel.CategoryId;
             listing.Status = viewModel.Status;
 
+            // ✅ فقط لو رفع صور جديدة (اختياري) - نضيفها جنب القديمة
             if (viewModel.NewImages != null && viewModel.NewImages.Any())
             {
                 string uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "uploads", "listings");
@@ -465,7 +484,7 @@ namespace SW_Project.Controllers
 
                 foreach (var img in viewModel.NewImages)
                 {
-                    if (img.Length > 0)
+                    if (img != null && img.Length > 0)
                     {
                         string uniqueFileName = Guid.NewGuid().ToString() + "_" + Path.GetFileName(img.FileName);
                         string filePath = Path.Combine(uploadsFolder, uniqueFileName);

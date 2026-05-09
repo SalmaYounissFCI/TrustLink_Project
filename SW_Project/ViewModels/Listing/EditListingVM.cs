@@ -33,9 +33,14 @@ namespace SW_Project.ViewModels.Listing
 
         public string Status { get; set; }
 
-        // Images
-        public List<string> ExistingImages { get; set; }
-        public List<IFormFile> NewImages { get; set; }
+        // ✅ الصور الجديدة - اختيارية (مفيش Required)
+        [Display(Name = "Add New Images (Optional)")]
+        public List<IFormFile>? NewImages { get; set; }
+
+        // ✅ دي موجودة لو عندك صور قديمة تظهر في الـ View
+        // بس مش موجودة هنا في الكود اللي حطيته
+        // لو عايزة تعرض الصور القديمة في الـ Edit form, أضيفي:
+        public List<string>? ExistingImages { get; set; }
 
         // Dropdown
         public IEnumerable<SelectListItem> Categories { get; set; }
