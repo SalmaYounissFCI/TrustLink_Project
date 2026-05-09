@@ -66,6 +66,7 @@ namespace SW_Project.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+       
         public async Task<IActionResult> DeleteUser(string id)
         {
             var user = await _unitOfWork.Users.GetByIdAsync(id);
@@ -82,38 +83,61 @@ namespace SW_Project.Controllers
 
             try
             {
-                // Delete related data
-                var userContracts = await _unitOfWork.Contracts.FindAllAsync(c => c.PartyAId == id || c.PartyBId == id);
-                _unitOfWork.Contracts.DeleteRange(userContracts);
+                // ✅ الخطوة 1: حذف رسائل المحادثات أولاً
+                var userMessages = await _unitOfWork.Messages.FindAllAsync(m => m.SenderId == id || m.ReceiverId == id);
+                _unitOfWork.Messages.DeleteRange(userMessages);
+                await _unitOfWork.CompleteAsync();
 
+                // ✅ الخطوة 2: حذف المحادثات
+                var userConversations = await _unitOfWork.Conversations.FindAllAsync(c => c.ParticipantAId == id || c.ParticipantBId == id);
+                _unitOfWork.Conversations.DeleteRange(userConversations);
+                await _unitOfWork.CompleteAsync();
+
+                // ✅ الخطوة 3: حذف توقيعات العقود
                 var userSignatures = await _unitOfWork.ContractSignatures.FindAllAsync(s => s.UserId == id);
                 _unitOfWork.ContractSignatures.DeleteRange(userSignatures);
+                await _unitOfWork.CompleteAsync();
 
-                var userBookings = await _unitOfWork.Bookings.FindAllAsync(b => b.RenterId == id || b.Listing.OwnerId == id);
-                _unitOfWork.Bookings.DeleteRange(userBookings);
+                // ✅ الخطوة 4: حذف العقود
+                var userContracts = await _unitOfWork.Contracts.FindAllAsync(c => c.PartyAId == id || c.PartyBId == id);
+                _unitOfWork.Contracts.DeleteRange(userContracts);
+                await _unitOfWork.CompleteAsync();
 
-                var userListings = await _unitOfWork.Listings.FindAllAsync(l => l.OwnerId == id);
-                _unitOfWork.Listings.DeleteRange(userListings);
+                // ✅ الخطوة 5: حذف التقييمات
+                var userReviewsAsReviewer = await _unitOfWork.Reviews.FindAllAsync(r => r.ReviewerId == id);
+                var userReviewsAsReviewee = await _unitOfWork.Reviews.FindAllAsync(r => r.RevieweeId == id);
+                _unitOfWork.Reviews.DeleteRange(userReviewsAsReviewer);
+                _unitOfWork.Reviews.DeleteRange(userReviewsAsReviewee);
+                await _unitOfWork.CompleteAsync();
 
+                // ✅ الخطوة 6: حذف البلاغات
                 var reportsAsReporter = await _unitOfWork.Reports.FindAllAsync(r => r.ReporterUserId == id);
                 var reportsAsReported = await _unitOfWork.Reports.FindAllAsync(r => r.ReportedUserId == id);
                 _unitOfWork.Reports.DeleteRange(reportsAsReporter);
                 _unitOfWork.Reports.DeleteRange(reportsAsReported);
-
-                // حذف المفضلة
-                var userFavorites = await _unitOfWork.Favorites.FindAllAsync(f => f.UserId == id);
-                _unitOfWork.Favorites.DeleteRange(userFavorites);
-
-                // حذف الإشعارات
-                var userNotifications = await _unitOfWork.Notifications.FindAllAsync(n => n.UserId == id);
-                _unitOfWork.Notifications.DeleteRange(userNotifications);
-
-                // حذف رسائل المحادثات
-                var userMessages = await _unitOfWork.Messages.FindAllAsync(m => m.SenderId == id || m.ReceiverId == id);
-                _unitOfWork.Messages.DeleteRange(userMessages);
-
                 await _unitOfWork.CompleteAsync();
 
+                // ✅ الخطوة 7: حذف الحجوزات
+                var userBookings = await _unitOfWork.Bookings.FindAllAsync(b => b.RenterId == id || b.Listing.OwnerId == id);
+                _unitOfWork.Bookings.DeleteRange(userBookings);
+                await _unitOfWork.CompleteAsync();
+
+                // ✅ الخطوة 8: حذف الإشعارات
+                var userNotifications = await _unitOfWork.Notifications.FindAllAsync(n => n.UserId == id);
+                _unitOfWork.Notifications.DeleteRange(userNotifications);
+                await _unitOfWork.CompleteAsync();
+
+                // ✅ الخطوة 9: حذف المفضلة
+                var userFavorites = await _unitOfWork.Favorites.FindAllAsync(f => f.UserId == id);
+                _unitOfWork.Favorites.DeleteRange(userFavorites);
+                await _unitOfWork.CompleteAsync();
+
+                // ✅ الخطوة 10: حذف الإعلانات (هتاخد معاها الصور والحجوزات)
+                var userListings = await _unitOfWork.Listings.FindAllAsync(l => l.OwnerId == id);
+                _unitOfWork.Listings.DeleteRange(userListings);
+                await _unitOfWork.CompleteAsync();
+
+                // ✅ الخطوة 11: حذف المستخدم
                 var result = await _userManager.DeleteAsync(user);
                 if (result.Succeeded)
                 {
@@ -130,6 +154,9 @@ namespace SW_Project.Controllers
             {
                 await _unitOfWork.RollbackTransactionAsync();
                 TempData["Error"] = $"An error occurred: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"DeleteUser Error: {ex.Message}");
+                if (ex.InnerException != null)
+                    System.Diagnostics.Debug.WriteLine($"Inner Exception: {ex.InnerException.Message}");
             }
 
             return RedirectToAction(nameof(Users));
@@ -143,7 +170,7 @@ namespace SW_Project.Controllers
                 l => l.Category,
                 l => l.Owner);
 
-            var orderedListings = listings.OrderByDescending(l => l.CreatedAt);
+            var orderedListings = listings.OrderByDescending(l => l.CreatedAt).ToList();
             return View(orderedListings);
         }
 
@@ -171,7 +198,7 @@ namespace SW_Project.Controllers
                 c => c.Booking.Renter,
                 c => c.Booking.Listing.Owner);
 
-            var orderedContracts = contracts.OrderByDescending(c => c.CreatedAt);
+            var orderedContracts = contracts.OrderByDescending(c => c.CreatedAt).ToList();
             return View(orderedContracts);
         }
 
@@ -185,7 +212,7 @@ namespace SW_Project.Controllers
                 r => r.ReportedListing,
                 r => r.ReportedListing.Category);
 
-            var orderedReports = reports.OrderByDescending(r => r.CreatedAt);
+            var orderedReports = reports.OrderByDescending(r => r.CreatedAt).ToList();
             return View(orderedReports);
         }
 
@@ -230,7 +257,7 @@ namespace SW_Project.Controllers
                 r => r.Booking,
                 r => r.Booking.Listing);
 
-            var orderedReviews = reviews.OrderByDescending(r => r.CreatedAt);
+            var orderedReviews = reviews.OrderByDescending(r => r.CreatedAt).ToList();
             return View(orderedReviews);
         }
 
@@ -254,7 +281,7 @@ namespace SW_Project.Controllers
                 b => b.Renter,
                 b => b.Listing.Owner);
 
-            var orderedBookings = bookings.OrderByDescending(b => b.CreatedAt);
+            var orderedBookings = bookings.OrderByDescending(b => b.CreatedAt).ToList();
             return View(orderedBookings);
         }
     }

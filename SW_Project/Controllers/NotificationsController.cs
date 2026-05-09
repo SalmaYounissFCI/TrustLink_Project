@@ -27,7 +27,7 @@ namespace SW_Project.Controllers
             // ✅ التحويل إلى List بعد الترتيب (وده اللي كان ناقص)
             var orderedNotifications = notifications
                 .OrderByDescending(n => n.CreatedAt)
-                .ToList();  // <- مهم جدًا! حولها إلى List
+                .ToList();  
 
             return View(orderedNotifications);
         }

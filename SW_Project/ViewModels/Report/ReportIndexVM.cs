@@ -11,7 +11,7 @@
         public bool IsResolved { get; set; }
         public DateTime? ResolvedAt { get; set; }
         public string? ResolvedByAdminEmail { get; set; }
-        public string Type { get; set; } // "Listing" or "User"
+        public string Type { get; set; } // "Listing" or "User" or "Other"
         public int? ReportedListingId { get; set; }
         public string? ReportedListingTitle { get; set; }
         public string? ReportedUserEmail { get; set; }

@@ -30,7 +30,7 @@ namespace SW_Project.Controllers
                 c => c.Listing,
                 c => c.Listing.ListingImages);
 
-            var orderedConversations = conversations.OrderByDescending(c => c.LastMessageAt ?? c.CreatedAt);
+            var orderedConversations = conversations.OrderByDescending(c => c.LastMessageAt ?? c.CreatedAt).ToList();
 
             var inboxItems = new List<InboxItemVM>();
 

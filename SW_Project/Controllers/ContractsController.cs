@@ -250,7 +250,7 @@ namespace SW_Project.Controllers
                 await _unitOfWork.CompleteAsync();
             }
 
-            var orderedContracts = contracts.OrderByDescending(c => c.CreatedAt);
+            var orderedContracts = contracts.OrderByDescending(c => c.CreatedAt).ToList();
 
             var viewModel = new List<MyContractListItemVM>();
 

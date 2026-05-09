@@ -41,7 +41,7 @@ namespace SW_Project.Controllers
                 b => b.Listing);
 
             var recentBookings = recentBookingsList
-                .OrderByDescending(b => b.CreatedAt)
+                .OrderByDescending(b => b.CreatedAt).ToList()
                 .Take(5)
                 .Select(b => new RecentBookingDTO
                 {
@@ -61,7 +61,7 @@ namespace SW_Project.Controllers
                 c => c.Booking.Renter);
 
             var recentContracts = recentContractsList
-                .OrderByDescending(c => c.CreatedAt)
+                .OrderByDescending(c => c.CreatedAt).ToList()
                 .Take(5)
                 .Select(c => new RecentContractDTO
                 {
@@ -82,7 +82,7 @@ namespace SW_Project.Controllers
                 r => r.Reviewee);
 
             var recentReviews = recentReviewsGiven
-                .OrderByDescending(r => r.CreatedAt)
+                .OrderByDescending(r => r.CreatedAt).ToList()
                 .Take(5)
                 .Select(r => new RecentReviewDTO
                 {
@@ -104,7 +104,7 @@ namespace SW_Project.Controllers
                 r => r.Reviewer);
 
             var recentReviewsReceived = recentReviewsReceivedList
-                .OrderByDescending(r => r.CreatedAt)
+                .OrderByDescending(r => r.CreatedAt).ToList()
                 .Take(3)
                 .Select(r => new RecentReviewDTO
                 {

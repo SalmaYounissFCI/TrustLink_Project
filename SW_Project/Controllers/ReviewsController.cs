@@ -20,6 +20,12 @@ namespace SW_Project.Controllers
 
         public async Task<IActionResult> Create(int bookingId, string revieweeId)
         {
+            var userId = _userManager.GetUserId(User);
+            if (userId == revieweeId)
+            {
+                TempData["Error"] = "You cannot review yourself.";
+                return RedirectToAction("MyBookings", "Bookings");
+            }
             var booking = await _unitOfWork.Bookings.FindAsync(
                 b => b.Id == bookingId,
                 b => b.Listing);
@@ -27,7 +33,7 @@ namespace SW_Project.Controllers
             if (booking == null)
                 return NotFound();
 
-            var userId = _userManager.GetUserId(User);
+           
 
             var isEffectivelyCompleted = booking.Status == "Completed" || booking.EndDate < DateTime.Today;
             if (!isEffectivelyCompleted)
@@ -74,6 +80,11 @@ namespace SW_Project.Controllers
             var userId = _userManager.GetUserId(User);
             model.ReviewerId = userId;
             model.CreatedAt = DateTime.Now;
+            if (userId == model.RevieweeId)
+            {
+                TempData["Error"] = "You cannot review yourself.";
+                return RedirectToAction("MyBookings", "Bookings");
+            }
 
             var existing = await _unitOfWork.Reviews.ExistsAsync(r => r.BookingId == model.BookingId && r.ReviewerId == userId);
 

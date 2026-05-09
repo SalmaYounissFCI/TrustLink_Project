@@ -30,10 +30,10 @@ namespace SW_Project.ViewModels.Listing
         [Required(ErrorMessage = "Category is required")]
         public int CategoryId { get; set; }
 
+        [Required(ErrorMessage = "Please upload at least one image")]
         [Display(Name = "Images")]
         public List<IFormFile> Images { get; set; }
 
-        // For dropdown list
         public IEnumerable<SelectListItem> Categories { get; set; }
     }
 }

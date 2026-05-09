@@ -8,9 +8,9 @@ namespace SW_Project.ViewModels.Report
 
         public string? ReportedUserId { get; set; }
 
-        [Required(ErrorMessage = "سبب البلاغ مطلوب")]
-        [MinLength(5, ErrorMessage = "الرجاء كتابة سبب واضح (5 أحرف على الأقل)")]
-        [MaxLength(1000, ErrorMessage = "سبب البلاغ لا يتجاوز 1000 حرف")]
+        [Required(ErrorMessage = "Report reason is required")]
+        [MinLength(5, ErrorMessage = "Please provide at least 5 characters")]
+        [MaxLength(1000, ErrorMessage = "Reason cannot exceed 1000 characters")]
         public string Reason { get; set; }
     }
 }
