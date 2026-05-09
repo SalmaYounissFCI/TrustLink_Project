@@ -223,6 +223,18 @@
                 <div class="d-flex gap-3 mt-3 flex-wrap">
                     <span class="contract-status status-@Model.Status.ToLower()">
                         <i class="bi bi-file-check"></i> @Model.Status
+                        @if (Model.Status == "Active")
+                        {
+                            var isContractPaid = ViewBag.IsPaid ?? false;
+                            if (!isContractPaid)
+                            {
+                                <span class="ms-1">- Unpaid</span>
+                            }
+                            else
+                            {
+                                <span class="ms-1">- Paid</span>
+                            }
+                        }
                     </span>
                     <span class="text-gold-light">
                         <i class="bi bi-calendar3"></i> Created: @Model.CreatedAt.ToString("MMMM dd, yyyy")
@@ -343,6 +355,12 @@
 
             <!-- Action Buttons -->
             <div class="action-buttons">
+                @{
+                    var isActive = Model.Status == "Active";
+                    var isPaid = ViewBag.IsPaid ?? false;
+                }
+
+                <!-- زرار التوقيع (لو مش موقع) -->
                 @if (!Model.CurrentUserHasSigned && Model.Status != "Active")
                 {
                     <a href="/Contracts/Sign/@Model.Id" class="btn-sign">
@@ -350,6 +368,26 @@
                     </a>
                 }
 
+                <!-- زرار الدفع (لو Active ومش مدفوع) -->
+                @if (isActive && !isPaid)
+                {
+                    <a asp-controller="Payment" asp-action="Checkout" asp-route-contractId="@Model.Id"
+                       class="btn-gold-tl">
+                        <i class="bi bi-credit-card"></i> Pay Now
+                    </a>
+                }
+
+                <!-- رسالة الدفع المدفوع (لو Active ومدفوع) -->
+                @if (isActive && isPaid)
+                {
+                    <div class="alert alert-success d-inline-flex align-items-center gap-2 px-4 py-2 rounded-pill"
+                         style="background: rgba(74,222,128,0.12); color: #16a34a; border: none;">
+                        <i class="bi bi-check-circle-fill"></i>
+                        <span>This contract has been paid</span>
+                    </div>
+                }
+
+                <!-- تحميل PDF (لو موجود) -->
                 @if (!string.IsNullOrEmpty(Model.PdfPath))
                 {
                     <a href="@Model.PdfPath" class="btn-download" download>
@@ -357,11 +395,11 @@
                     </a>
                 }
 
+                <!-- زرار الرجوع -->
                 <a href="javascript:history.back()" class="btn-back">
                     <i class="bi bi-arrow-left me-2"></i> Back
                 </a>
             </div>
-
         </div>
     </div>
 </div>

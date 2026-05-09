@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SW_Project.Data;
 
@@ -11,9 +12,11 @@ using SW_Project.Data;
 namespace SW_Project.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260509130320_MakeStripePaymentIntentIdNullable")]
+    partial class MakeStripePaymentIntentIdNullable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -312,10 +315,6 @@ namespace SW_Project.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("AdminId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<bool>("AgreePrivacy")
                         .HasColumnType("bit");
 
@@ -342,8 +341,6 @@ namespace SW_Project.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("AdminId");
 
                     b.ToTable("ContactMessages");
                 });
@@ -883,17 +880,6 @@ namespace SW_Project.Migrations
                     b.Navigation("Listing");
 
                     b.Navigation("Renter");
-                });
-
-            modelBuilder.Entity("SW_Project.Models.ContactMessage", b =>
-                {
-                    b.HasOne("SW_Project.Models.ApplicationUser", "Admin")
-                        .WithMany()
-                        .HasForeignKey("AdminId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Admin");
                 });
 
             modelBuilder.Entity("SW_Project.Models.Contract", b =>

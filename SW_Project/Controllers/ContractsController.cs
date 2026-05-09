@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Rotativa.AspNetCore;
 using SW_Project.Interfaces;
 using SW_Project.Models;
+using SW_Project.Services;
 using SW_Project.ViewModels.Contract;
 
 namespace SW_Project.Controllers
@@ -15,17 +16,20 @@ namespace SW_Project.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IEmailSender _emailSender;
         private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly IPaymentService _paymentService;
 
         public ContractsController(
             IUnitOfWork unitOfWork,
             UserManager<ApplicationUser> userManager,
             IEmailSender emailSender,
-            IWebHostEnvironment webHostEnvironment)
+            IWebHostEnvironment webHostEnvironment,
+            IPaymentService paymentService)
         {
             _unitOfWork = unitOfWork;
             _userManager = userManager;
             _emailSender = emailSender;
             _webHostEnvironment = webHostEnvironment;
+            _paymentService = paymentService;
         }
 
         [AllowAnonymous]
@@ -43,6 +47,8 @@ namespace SW_Project.Controllers
 
             var userId = _userManager.GetUserId(User);
             var userIsParty = userId == contract.PartyAId || userId == contract.PartyBId;
+
+            var isPaid = await _paymentService.IsContractPaidAsync(id);
 
             if (!User.Identity?.IsAuthenticated == true || !userIsParty)
                 return Forbid();
@@ -89,6 +95,7 @@ namespace SW_Project.Controllers
                 CurrentUserHasSigned = (userId == contract.PartyAId && partyASig != null) ||
                                        (userId == contract.PartyBId && partyBSig != null)
             };
+            ViewBag.IsPaid = isPaid;
 
             return View(viewModel);
         }
@@ -273,7 +280,8 @@ namespace SW_Project.Controllers
                     OtherPartyRole = c.PartyAId == userId ? "Renter" : "Owner",
                     IsSignedByMe = c.ContractSignatures.Any(s => s.UserId == userId),
                     IsSignedByOther = c.ContractSignatures.Count() == 2,
-                    SignedAt = c.ContractSignatures.FirstOrDefault(s => s.UserId == userId)?.SignedAt
+                    SignedAt = c.ContractSignatures.FirstOrDefault(s => s.UserId == userId)?.SignedAt,
+                      IsPaid = await _paymentService.IsContractPaidAsync(c.Id)
                 });
             }
 

@@ -5,6 +5,9 @@ using SW_Project.Models;
 using SW_Project.Interfaces;
 using SW_Project.Repositories;
 using Rotativa.AspNetCore;
+using Stripe; 
+using SW_Project.Interfaces;  
+using SW_Project.Services;     
 
 namespace SW_Project
 {
@@ -53,8 +56,16 @@ namespace SW_Project
 
             builder.Services.AddControllersWithViews();
 
+            builder.Services.AddScoped<IPaymentService, PaymentService>();
+
+
             var app = builder.Build();
+
+            StripeConfiguration.ApiKey = builder.Configuration["Stripe:SecretKey"];
+
             RotativaConfiguration.Setup(app.Environment.WebRootPath, "Rotativa");
+
+           
 
             // Apply migrations and seed data
             using (var scope = app.Services.CreateScope())

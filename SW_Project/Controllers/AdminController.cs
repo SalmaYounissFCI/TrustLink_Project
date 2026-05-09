@@ -42,6 +42,8 @@ namespace SW_Project.Controllers
             // إحصائيات التقييمات
             var totalReviews = await _unitOfWork.Reviews.CountAsync();
 
+            var totalMessages = await _unitOfWork.ContactMessages.CountAsync();
+
             var viewModel = new AdminDashboardViewModel
             {
                 TotalUsers = totalUsers,
@@ -256,6 +258,39 @@ namespace SW_Project.Controllers
 
             var orderedBookings = bookings.OrderByDescending(b => b.CreatedAt);
             return View(orderedBookings);
+        }
+        // ======================== Contact Messages Management ========================
+        public async Task<IActionResult> Messages()
+        {
+            var messages = await _unitOfWork.ContactMessages.FindAllAsync(m => true);
+            var orderedMessages = messages.OrderByDescending(m => m.SentAt).ToList();
+
+            return View(orderedMessages);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> MarkMessageAsRead(int id)
+        {
+            var message = await _unitOfWork.ContactMessages.GetByIdAsync(id);
+            if (message != null)
+            {
+                message.IsRead = true;
+                _unitOfWork.ContactMessages.Update(message);
+                await _unitOfWork.CompleteAsync();
+                TempData["Success"] = "Message marked as read.";
+            }
+            return RedirectToAction(nameof(Messages));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteMessage(int id)
+        {
+            await _unitOfWork.ContactMessages.DeleteByIdAsync(id);
+            await _unitOfWork.CompleteAsync();
+            TempData["Success"] = "Message deleted successfully.";
+            return RedirectToAction(nameof(Messages));
         }
     }
 }

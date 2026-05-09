@@ -81,6 +81,27 @@ namespace SW_Project.Data
                 .WithMany()
                 .HasForeignKey(r => r.ReportedListingId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<Payment>()
+                .HasOne(p => p.User)
+                .WithMany()
+                .HasForeignKey(p => p.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<Payment>()
+                .HasOne(p => p.Contract)
+                .WithMany()
+                .HasForeignKey(p => p.ContractId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<ContactMessage>()
+                .HasOne(c => c.Admin)
+                .WithMany()
+                .HasForeignKey(c => c.AdminId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
+
+
+
     }
 }
