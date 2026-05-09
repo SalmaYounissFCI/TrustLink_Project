@@ -1,4 +1,8 @@
 ﻿@using SW_Project.ViewModels.Listing
+@using SW_Project.Interfaces
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> _userManager
+@inject IUnitOfWork _unitOfWork
 @model ListingDetailsVM
 @{
     ViewData["Title"] = Model.Title;
@@ -13,36 +17,65 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="stylesheet" href="~/css/style.css">
+    <style>
+            .btn-outline-tl.disabled-btn, .btn-outline-tl:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+                pointer-events: none;
+            }
+
+            .already-booked-btn {
+                background-color: #6c757d;
+                color: white;
+                border: none;
+                padding: 0.6rem 1.5rem;
+                border-radius: 8px;
+                font-weight: 600;
+                cursor: not-allowed;
+                opacity: 0.6;
+            }
+    </style>
 </head>
 <body>
 
-    <div class="d-flex gap-3 align-items-center">
-        @if (User?.Identity?.IsAuthenticated == true)
-        {
-            <a href="/Listings/Create" class="btn-post-listing">+ Post Listing</a>
-            <a href="/Listings/MyListings" class="nav-link-custom">My Listings</a>
-            <a href="/Bookings/MyBookings" class="nav-link-custom">My Bookings</a>
-            <a href="/Favorites" class="nav-link-custom">Favorites</a>
-           
-            <a href="/Bookings/ReceivedBookings" class="nav-link-custom">Received Bookings</a>
-            <a href="/Contracts/MyContracts" class="nav-link-custom">My Contracts</a>
-            <li class="nav-item position-relative">
-                <a class="nav-link notification-bell" href="/Notifications" id="notificationBell">
-                    <i class="bi bi-bell-fill"></i>
-                    <span id="notif-badge" class="topbar-notif-badge" style="display: none;">0</span>
-                    <span id="notif-dot" class="notification-dot" style="display: none;"></span>
-                </a>
-            </li>
-            <a href="/Account/Profile" class="nav-link-custom">Profile</a>
-            <a href="/Account/Logout" class="nav-link-custom">Logout</a>
-        }
-        else
-        {
-            <a href="/Account/Login" class="btn-outline-tl-nav">Sign In</a>
-            <a href="/Account/Register" class="btn-nav-cta-nav">Get Started</a>
-        }
-    </div>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">Trust<span>Link</span></a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center gap-2">
+                    @if (User?.Identity?.IsAuthenticated == true)
+                    {
+                        <li class="nav-item"><a href="/Listings/Create" class="btn-post-listing">+ Post Listing</a></li>
+                        <li class="nav-item"><a href="/Listings/MyListings" class="nav-link-custom">My Listings</a></li>
+                        <li class="nav-item"><a href="/Bookings/MyBookings" class="nav-link-custom">My Bookings</a></li>
+                        <li class="nav-item"><a href="/Favorites" class="nav-link-custom">Favorites</a></li>
+                        <li class="nav-item"><a href="/Bookings/ReceivedBookings" class="nav-link-custom">Received Bookings</a></li>
+                        <li class="nav-item"><a href="/Contracts/MyContracts" class="nav-link-custom">My Contracts</a></li>
+                        <li class="nav-item position-relative">
+                            <a class="nav-link notification-bell" href="/Notifications" id="notificationBell">
+                                <i class="bi bi-bell-fill"></i>
+                                <span id="notif-badge" class="topbar-notif-badge" style="display: none;">0</span>
+                                <span id="notif-dot" class="notification-dot" style="display: none;"></span>
+                            </a>
+                        </li>
+                        <li class="nav-item"><a href="/Account/Profile" class="nav-link-custom">Profile</a></li>
+                        <li class="nav-item"><a href="/Account/Logout" class="nav-link-custom">Logout</a></li>
+                    }
+                    else
+                    {
+                        <li class="nav-item"><a href="/Account/Login" class="btn-outline-tl-nav">Sign In</a></li>
+                        <li class="nav-item"><a href="/Account/Register" class="btn-nav-cta-nav">Get Started</a></li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </nav>
 
+    <!-- Hero Section -->
     <section class="page-hero" style="padding: 6rem 0 2rem;">
         <div class="container">
             <div class="row">
@@ -55,9 +88,11 @@
         </div>
     </section>
 
+    <!-- Main Content -->
     <section class="profile-section">
         <div class="container">
             <div class="row g-4">
+                <!-- Left Column - Images and Description -->
                 <div class="col-lg-8">
                     @if (Model.ImageUrls != null && Model.ImageUrls.Any())
                     {
@@ -99,32 +134,68 @@
                         {
                             <p><strong>Deposit:</strong> $@Model.Deposit</p>
                         }
+
+                        <!-- Action Buttons -->
                         <div class="mt-4 d-flex gap-3 flex-wrap">
-                            @if (!Model.IsOwner && Model.IsAvailable)
+                            @if (User?.Identity?.IsAuthenticated == true)
                             {
-                                <a href="/Bookings/Create?listingId=@Model.Id" class="btn-primary-tl">Book Now</a>
+                                var currentUserId = _userManager.GetUserId(User);
+                                
+                                // التحقق من وجود حجز نشط لنفس المستخدم
+                                var hasActiveBooking = false;
+                                var activeBooking = await _unitOfWork.Bookings.FindAsync(b =>
+                                    b.ListingId == Model.Id &&
+                                    b.RenterId == currentUserId &&
+                                    (b.Status == "Pending" || b.Status == "Accepted" || b.Status == "Active"));
+                                hasActiveBooking = activeBooking != null;
+
+                                // المالك للإعلان
+                                if (Model.IsOwner)
+                                {
+                                    <a href="/Listings/Edit/@Model.Id" class="btn-primary-tl">Edit Listing</a>
+                                    <a href="/Listings/Delete/@Model.Id" class="btn-danger-tl">Delete Listing</a>
+                                }
+                                // الإعلان متاح و مفيش حجز نشط للمستخدم
+                                else if (Model.IsAvailable && !hasActiveBooking)
+                                {
+                                    <a href="/Bookings/Create?listingId=@Model.Id" class="btn-primary-tl">Book Now</a>
+                                    <button class="btn-outline-tl" id="messageOwnerBtn">Message Owner</button>
+                                    <a href="/Reports/Create?listingId=@Model.Id" class="btn-outline-tl" style="border-color: #dc3545; color: #dc3545;">
+                                        <i class="bi bi-flag"></i> Report Listing
+                                    </a>
+                                }
+                                // الإعلان متاح بس فيه حجز نشط للمستخدم
+                                else if (Model.IsAvailable && hasActiveBooking)
+                                {
+                                    <button class="already-booked-btn" disabled>
+                                        <i class="bi bi-check-circle"></i> Already Booked
+                                    </button>
+                                    <button class="btn-outline-tl" id="messageOwnerBtn">Message Owner</button>
+                                    <a href="/Reports/Create?listingId=@Model.Id" class="btn-outline-tl" style="border-color: #dc3545; color: #dc3545;">
+                                        <i class="bi bi-flag"></i> Report Listing
+                                    </a>
+                                }
+                                // الإعلان مش متاح
+                                else if (!Model.IsAvailable)
+                                {
+                                    <button class="btn-secondary-tl" disabled>Currently Rented</button>
+                                    <button class="btn-outline-tl" id="messageOwnerBtn">Message Owner</button>
+                                    <a href="/Reports/Create?listingId=@Model.Id" class="btn-outline-tl" style="border-color: #dc3545; color: #dc3545;">
+                                        <i class="bi bi-flag"></i> Report Listing
+                                    </a>
+                                }
                             }
-                            else if (Model.IsOwner)
+                            else
                             {
-                                <a href="/Listings/Edit/@Model.Id" class="btn-primary-tl">Edit Listing</a>
-                                <a href="/Listings/Delete/@Model.Id" class="btn-danger-tl">Delete Listing</a>
-                            }
-                            else if (!Model.IsAvailable)
-                            {
-                                <button class="btn-secondary-tl" disabled>Currently Rented</button>
-                            }
-                            <a href="#" class="btn-outline-tl" id="messageOwnerBtn">Message Owner</a>
-                            
-                            @* زر الإبلاغ عن الإعلان - يظهر فقط إذا لم يكن المالك هو المستخدم الحالي *@
-                            @if (!Model.IsOwner && User?.Identity?.IsAuthenticated == true)
-                            {
-                                <a href="/Reports/Create?listingId=@Model.Id" class="btn-outline-tl" style="border-color: #dc3545; color: #dc3545;">
-                                    <i class="bi bi-flag"></i> Report Listing
-                                </a>
+                                // User not logged in
+                                <a href="/Account/Login" class="btn-primary-tl">Sign in to Book</a>
+                                <button class="btn-outline-tl" id="messageOwnerBtnGuest">Message Owner</button>
                             }
                         </div>
                     </div>
                 </div>
+
+                <!-- Right Column - Owner Info -->
                 <div class="col-lg-4">
                     <div class="profile-card">
                         <div class="profile-header">
@@ -148,8 +219,8 @@
                                 <span class="info-value">@Model.OwnerLocation</span>
                             </div>
                             
-                            @* زر الإبلاغ عن المستخدم - يظهر فقط إذا لم يكن المستخدم الحالي هو صاحب البروفايل *@
-                            @if (User?.Identity?.IsAuthenticated == true && User.Identity.Name != Model.OwnerEmail)
+                            @* Report User button - only if not the owner and authenticated *@
+                            @if (User?.Identity?.IsAuthenticated == true && !Model.IsOwner)
                             {
                                 <div class="mt-3">
                                     <a href="/Reports/Create?reportedUserId=@Model.OwnerId" class="btn btn-outline-danger btn-sm w-100">
@@ -164,6 +235,7 @@
         </div>
     </section>
 
+    <!-- Footer -->
     <footer class="tl-footer">
         <div class="container">
             <div class="row g-5">
@@ -199,10 +271,35 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        document.getElementById('messageOwnerBtn').addEventListener('click', function(e) {
+        // Message button event listener for logged in users
+        var messageBtn = document.getElementById('messageOwnerBtn');
+        if (messageBtn) {
+        messageBtn.addEventListener('click', function(e) {
         e.preventDefault();
         window.location.href = '/Messages/Conversation?userId=@Model.OwnerId&listingId=@Model.Id';
         });
+        }
+        
+        // Message button for guests
+        var messageBtnGuest = document.getElementById('messageOwnerBtnGuest');
+        if (messageBtnGuest) {
+        messageBtnGuest.addEventListener('click', function(e) {
+        e.preventDefault();
+        window.location.href = '/Account/Login?returnUrl=' + encodeURIComponent(window.location.pathname);
+        });
+        }
+        
+        // Notification count
+        fetch('/Notifications/GetUnreadCount')
+        .then(response => response.json())
+        .then(data => {
+        if (data.count > 0) {
+        const badge = document.getElementById('notif-badge');
+        badge.textContent = data.count;
+        badge.style.display = 'inline-block';
+        }
+        })
+        .catch(error => console.error('Error fetching notifications:', error));
     </script>
 </body>
 </html>

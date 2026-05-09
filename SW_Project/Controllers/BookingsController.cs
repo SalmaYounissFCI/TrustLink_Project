@@ -320,5 +320,20 @@ namespace SW_Project.Controllers
             TempData["Success"] = "Booking marked as completed. You can now leave a review.";
             return RedirectToAction("MyBookings");
         }
+
+
+        // GET: /Bookings/Details/5
+        public async Task<IActionResult> Details(int id)
+        {
+            var booking = await _unitOfWork.Bookings.GetByIdAsync(id);
+
+            if (booking == null)
+            {
+                return NotFound();
+            }
+
+            // Redirect to the listing details page
+            return RedirectToAction("Details", "Listings", new { id = booking.ListingId });
+        }
     }
 }

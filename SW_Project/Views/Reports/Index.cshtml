@@ -1,15 +1,15 @@
 ﻿@using SW_Project.ViewModels.Report
 @model List<ReportIndexVM>
 @{
-    ViewData["Title"] = "إدارة البلاغات";
+    ViewData["Title"] = "Reports Management";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
 <section class="page-hero" style="padding: 6rem 0 3rem;">
     <div class="container">
         <span class="page-hero-eyebrow">Admin Dashboard</span>
-        <h1 class="page-hero-title">إدارة البلاغات</h1>
-        <p class="page-hero-desc">مراجعة وحل البلاغات الواردة من المستخدمين</p>
+        <h1 class="page-hero-title">Reports Management</h1>
+        <p class="page-hero-desc">Review and resolve user reports</p>
     </div>
 </section>
 
@@ -26,10 +26,10 @@
         <div class="row mb-4">
             <div class="col-auto ms-auto">
                 <span class="badge bg-danger p-2 fs-6">
-                    <i class="bi bi-flag"></i> غير محلول: @Model.Count(r => !r.IsResolved)
+                    <i class="bi bi-flag"></i> Pending: @Model.Count(r => !r.IsResolved)
                 </span>
                 <span class="badge bg-success p-2 fs-6 ms-2">
-                    <i class="bi bi-check-circle"></i> محلول: @Model.Count(r => r.IsResolved)
+                    <i class="bi bi-check-circle"></i> Resolved: @Model.Count(r => r.IsResolved)
                 </span>
             </div>
         </div>
@@ -39,13 +39,13 @@
                 <table class="table table-hover mb-0">
                     <thead style="background: var(--navy); color: var(--ivory);">
                         <tr>
-                            <th style="padding: 1rem;">#</th>
-                            <th style="padding: 1rem;">المبلغ</th>
-                            <th style="padding: 1rem;">المبلغ ضده</th>
-                            <th style="padding: 1rem;">سبب البلاغ</th>
-                            <th style="padding: 1rem;">التاريخ</th>
-                            <th style="padding: 1rem;">الحالة</th>
-                            <th style="padding: 1rem;">إجراءات</th>
+                            <th style="padding: 1rem;">ID</th>
+                            <th style="padding: 1rem;">Reporter</th>
+                            <th style="padding: 1rem;">Reported Item</th>
+                            <th style="padding: 1rem;">Reason</th>
+                            <th style="padding: 1rem;">Date</th>
+                            <th style="padding: 1rem;">Status</th>
+                            <th style="padding: 1rem;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -60,7 +60,7 @@
                                 <td class="align-middle">
                                     @if (report.Type == "Listing")
                                     {
-                                        <span class="badge bg-info">إعلان</span>
+                                        <span class="badge bg-info">Listing</span>
                                         <div class="mt-1">
                                             <a href="/Listings/Details/@report.ReportedListingId" target="_blank">
                                                 @report.ReportedListingTitle
@@ -69,12 +69,12 @@
                                     }
                                     else if (report.Type == "User")
                                     {
-                                        <span class="badge bg-warning">مستخدم</span>
+                                        <span class="badge bg-warning">User</span>
                                         <div class="mt-1">@report.ReportedUserEmail</div>
                                     }
                                     else
                                     {
-                                        <span class="badge bg-secondary">عام</span>
+                                        <span class="badge bg-secondary">General</span>
                                     }
                                 </td>
                                 <td class="align-middle" style="max-width: 300px; white-space: normal;">
@@ -85,7 +85,7 @@
                                     @if (report.IsResolved)
                                     {
                                         <span class="badge bg-success">
-                                            <i class="bi bi-check-circle"></i> تم الحل
+                                            <i class="bi bi-check-circle"></i> Resolved
                                         </span>
                                         <br />
                                         <small class="text-muted">@(report.ResolvedAt?.ToString("yyyy-MM-dd"))</small>
@@ -93,7 +93,7 @@
                                     else
                                     {
                                         <span class="badge bg-danger">
-                                            <i class="bi bi-clock"></i> قيد المراجعة
+                                            <i class="bi bi-clock"></i> Pending
                                         </span>
                                     }
                                 </td>
@@ -103,8 +103,8 @@
                                         <form method="post" asp-action="Resolve" asp-route-id="@report.Id" style="display: inline-block;">
                                             @Html.AntiForgeryToken()
                                             <button type="submit" class="btn btn-sm btn-success"
-                                                    onclick="return confirm('هل أنت متأكد من حل هذا البلاغ؟')">
-                                                <i class="bi bi-check-lg"></i> حل
+                                                    onclick="return confirm('Are you sure you want to resolve this report?')">
+                                                <i class="bi bi-check-lg"></i> Resolve
                                             </button>
                                         </form>
                                     }
@@ -112,8 +112,8 @@
                                     <form method="post" asp-action="Delete" asp-route-id="@report.Id" style="display: inline-block;">
                                         @Html.AntiForgeryToken()
                                         <button type="submit" class="btn btn-sm btn-outline-danger"
-                                                onclick="return confirm('هل أنت متأكد من حذف هذا البلاغ؟')">
-                                            <i class="bi bi-trash"></i> حذف
+                                                onclick="return confirm('Are you sure you want to delete this report?')">
+                                            <i class="bi bi-trash"></i> Delete
                                         </button>
                                     </form>
                                 </td>
@@ -127,9 +127,9 @@
         @if (!Model.Any())
         {
             <div class="text-center py-5">
-                <i class="bi bi-inbox" style="font-size: 4rem; color: var(--slate-light);"></i>
-                <h3 class="mt-3 text-muted">لا توجد بلاغات</h3>
-                <p class="text-muted">عند قيام المستخدمين بالإبلاغ عن مخالفات، ستظهر هنا</p>
+                <i class="bi bi-inbox" style="font-size: 4rem; color: #94A3B8;"></i>
+                <h3 class="mt-3 text-muted">No Reports</h3>
+                <p class="text-muted">When users report violations, they will appear here</p>
             </div>
         }
     </div>

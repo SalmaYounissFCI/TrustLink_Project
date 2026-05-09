@@ -14,92 +14,329 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="stylesheet" href="~/css/style.css">
     <style>
-        .form-container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: var(--white);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-md);
-            padding: 2rem;
-        }
-
-        .form-label-tl {
-            font-weight: 600;
-            color: var(--navy);
-        }
-
-        .form-control, .form-select {
-            border: 1.5px solid var(--border);
-            border-radius: var(--radius-sm);
-            padding: 0.75rem 1rem;
-            font-family: 'DM Sans', sans-serif;
-        }
-
-            .form-control:focus, .form-select:focus {
-                border-color: var(--gold);
-                box-shadow: 0 0 0 3px rgba(201,168,76,0.1);
+            :root {
+                --navy: #0A2540;
+                --gold: #C9A84C;
+                --gold-light: #DDBD6E;
+                --white: #FFFFFF;
+                --gray-light: #F8F9FA;
+                --border: #E5E7EB;
+                --shadow-md: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.02);
+                --radius-sm: 8px;
+                --radius-lg: 16px;
             }
 
-        .btn-submit {
-            background: var(--gold);
-            color: var(--navy);
-            border: none;
-            padding: 0.85rem;
-            font-weight: 700;
-            width: 100%;
-        }
-
-            .btn-submit:hover {
-                background: var(--gold-light);
-                transform: translateY(-2px);
+            body {
+                font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+                background: var(--gray-light);
+                padding-top: 80px;
             }
 
-        .image-preview {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-top: 10px;
-        }
+            /* Navbar Styles */
+            .navbar {
+                background: var(--white);
+                box-shadow: var(--shadow-md);
+                padding: 1rem 0;
+            }
 
-            .image-preview img {
-                width: 80px;
-                height: 80px;
-                object-fit: cover;
+            .navbar-brand {
+                font-size: 1.75rem;
+                font-weight: 800;
+                color: var(--navy);
+                text-decoration: none;
+            }
+
+                .navbar-brand span {
+                    color: var(--gold);
+                }
+
+            .btn-post-listing {
+                background: var(--gold);
+                color: var(--navy);
+                padding: 0.5rem 1.25rem;
+                border-radius: 40px;
+                text-decoration: none;
+                font-weight: 600;
+                font-size: 0.9rem;
+                transition: all 0.2s ease;
+            }
+
+                .btn-post-listing:hover {
+                    background: var(--gold-light);
+                    transform: translateY(-1px);
+                }
+
+            .nav-link-custom {
+                color: var(--navy);
+                text-decoration: none;
+                font-weight: 500;
+                padding: 0.5rem 1rem;
+                transition: color 0.2s;
+            }
+
+                .nav-link-custom:hover {
+                    color: var(--gold);
+                }
+
+            .btn-outline-tl-nav {
+                border: 1.5px solid var(--gold);
+                color: var(--gold);
+                padding: 0.5rem 1.25rem;
+                border-radius: 40px;
+                text-decoration: none;
+                font-weight: 600;
+                transition: all 0.2s;
+            }
+
+                .btn-outline-tl-nav:hover {
+                    background: var(--gold);
+                    color: var(--navy);
+                }
+
+            .btn-nav-cta-nav {
+                background: var(--gold);
+                color: var(--navy);
+                padding: 0.5rem 1.25rem;
+                border-radius: 40px;
+                text-decoration: none;
+                font-weight: 600;
+                transition: all 0.2s;
+            }
+
+                .btn-nav-cta-nav:hover {
+                    background: var(--gold-light);
+                    transform: translateY(-1px);
+                }
+
+            /* Notification Styles */
+            .notification-bell {
+                position: relative;
+                font-size: 1.25rem;
+                color: var(--navy);
+            }
+
+            .topbar-notif-badge {
+                position: absolute;
+                top: -8px;
+                right: -12px;
+                background: #EF4444;
+                color: white;
+                font-size: 0.7rem;
+                font-weight: 600;
+                padding: 2px 6px;
+                border-radius: 20px;
+                min-width: 18px;
+                text-align: center;
+            }
+
+            /* Form Container */
+            .form-container {
+                max-width: 800px;
+                margin: 0 auto;
+                background: var(--white);
+                border-radius: var(--radius-lg);
+                box-shadow: var(--shadow-md);
+                padding: 2rem;
+            }
+
+            .form-label-tl {
+                font-weight: 600;
+                color: var(--navy);
+                margin-bottom: 0.5rem;
+                display: block;
+            }
+
+            .form-control, .form-select {
+                border: 1.5px solid var(--border);
                 border-radius: var(--radius-sm);
-                border: 1px solid var(--border);
+                padding: 0.75rem 1rem;
+                font-family: 'DM Sans', sans-serif;
+                width: 100%;
             }
 
-        
+                .form-control:focus, .form-select:focus {
+                    border-color: var(--gold);
+                    box-shadow: 0 0 0 3px rgba(201,168,76,0.1);
+                    outline: none;
+                }
+
+            .btn-submit {
+                background: var(--gold);
+                color: var(--navy);
+                border: none;
+                padding: 0.85rem;
+                font-weight: 700;
+                width: 100%;
+                border-radius: var(--radius-sm);
+                transition: all 0.2s;
+            }
+
+                .btn-submit:hover {
+                    background: var(--gold-light);
+                    transform: translateY(-2px);
+                }
+
+            .image-preview {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+                margin-top: 10px;
+            }
+
+                .image-preview img {
+                    width: 80px;
+                    height: 80px;
+                    object-fit: cover;
+                    border-radius: var(--radius-sm);
+                    border: 1px solid var(--border);
+                }
+
+            /* Hero Section */
+            .page-hero {
+                padding: 4rem 0 2rem;
+                text-align: center;
+            }
+
+            .page-hero-eyebrow {
+                color: var(--gold);
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                font-size: 0.8rem;
+            }
+
+            .page-hero-title {
+                font-size: 2.5rem;
+                font-weight: 800;
+                color: var(--navy);
+                margin: 1rem 0;
+            }
+
+                .page-hero-title em {
+                    color: var(--gold);
+                    font-style: normal;
+                }
+
+            .page-hero-desc {
+                color: #6B7280;
+                font-size: 1.1rem;
+            }
+
+            /* Footer */
+            .tl-footer {
+                background: var(--navy);
+                color: white;
+                padding: 3rem 0 1.5rem;
+                margin-top: 4rem;
+            }
+
+            .footer-brand {
+                font-size: 1.5rem;
+                font-weight: 800;
+                color: white;
+                text-decoration: none;
+            }
+
+                .footer-brand span {
+                    color: var(--gold);
+                }
+
+            .footer-desc {
+                color: #94A3B8;
+                margin-top: 1rem;
+            }
+
+            .footer-heading {
+                font-weight: 700;
+                margin-bottom: 1rem;
+            }
+
+            .footer-links {
+                list-style: none;
+                padding: 0;
+            }
+
+                .footer-links li {
+                    margin-bottom: 0.5rem;
+                }
+
+                .footer-links a {
+                    color: #94A3B8;
+                    text-decoration: none;
+                    transition: color 0.2s;
+                }
+
+                    .footer-links a:hover {
+                        color: var(--gold);
+                    }
+
+            .footer-bottom {
+                border-top: 1px solid #1E3A5F;
+                margin-top: 2rem;
+                padding-top: 1.5rem;
+                display: flex;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                gap: 1rem;
+            }
+
+            .footer-copyright {
+                color: #64748B;
+                font-size: 0.85rem;
+            }
+
+            .footer-social a {
+                color: #64748B;
+                margin-left: 1rem;
+                font-size: 1.25rem;
+                transition: color 0.2s;
+            }
+
+                .footer-social a:hover {
+                    color: var(--gold);
+                }
     </style>
 </head>
 <body>
 
-    <div class="d-flex gap-3 align-items-center">
-        @if (User?.Identity?.IsAuthenticated == true)
-        {
-            <a href="/Listings/Create" class="btn-post-listing">+ Post Listing</a>
-            <a href="/Listings/MyListings" class="nav-link-custom">My Listings</a>
-            <a href="/Bookings/MyBookings" class="nav-link-custom">My Bookings</a>
-            <a href="/Bookings/ReceivedBookings" class="nav-link-custom">Received Bookings</a>
-            <a href="/Contracts/MyContracts" class="nav-link-custom">My Contracts</a>
-            <li class="nav-item position-relative">
-                <a class="nav-link notification-bell" href="/Notifications" id="notificationBell">
-                    <i class="bi bi-bell-fill"></i>
-                    <span id="notif-badge" class="topbar-notif-badge" style="display: none;">0</span>
-                    <span id="notif-dot" class="notification-dot" style="display: none;"></span>
-                </a>
-            </li>
-            <a href="/Account/Profile" class="nav-link-custom">Profile</a>
-            <a href="/Account/Logout" class="nav-link-custom">Logout</a>
-        }
-        else
-        {
-            <a href="/Account/Login" class="btn-outline-tl-nav">Sign In</a>
-            <a href="/Account/Register" class="btn-nav-cta-nav">Get Started</a>
-        }
-    </div>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">Trust<span>Link</span></a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center gap-2">
+                    @if (User?.Identity?.IsAuthenticated == true)
+                    {
+                        <li class="nav-item"><a href="/Listings/Create" class="btn-post-listing">+ Post Listing</a></li>
+                        <li class="nav-item"><a href="/Listings/MyListings" class="nav-link-custom">My Listings</a></li>
+                        <li class="nav-item"><a href="/Bookings/MyBookings" class="nav-link-custom">My Bookings</a></li>
+                        <li class="nav-item"><a href="/Bookings/ReceivedBookings" class="nav-link-custom">Received Bookings</a></li>
+                        <li class="nav-item"><a href="/Contracts/MyContracts" class="nav-link-custom">My Contracts</a></li>
+                        <li class="nav-item position-relative">
+                            <a class="nav-link notification-bell" href="/Notifications" id="notificationBell">
+                                <i class="bi bi-bell-fill"></i>
+                                <span id="notif-badge" class="topbar-notif-badge" style="display: none;">0</span>
+                                <span id="notif-dot" class="notification-dot" style="display: none;"></span>
+                            </a>
+                        </li>
+                        <li class="nav-item"><a href="/Account/Profile" class="nav-link-custom">Profile</a></li>
+                        <li class="nav-item"><a href="/Account/Logout" class="nav-link-custom">Logout</a></li>
+                    }
+                    else
+                    {
+                        <li class="nav-item"><a href="/Account/Login" class="btn-outline-tl-nav">Sign In</a></li>
+                        <li class="nav-item"><a href="/Account/Register" class="btn-nav-cta-nav">Get Started</a></li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </nav>
 
-    <section class="page-hero" style="padding: 6rem 0 2rem;">
+    <!-- Hero Section -->
+    <section class="page-hero">
         <div class="container">
             <div class="row">
                 <div class="col-lg-8 mx-auto text-center">
@@ -111,6 +348,7 @@
         </div>
     </section>
 
+    <!-- Form Section -->
     <section class="profile-section" style="padding-top: 0;">
         <div class="container">
             <div class="form-container">
@@ -160,10 +398,11 @@
                     </div>
 
                     <div class="mb-4">
-                        <label class="form-label-tl">Images (select one or more)</label>
-                        <input type="file" name="Images" id="imageInput" class="form-control" multiple accept="image/*" />
+                        <label class="form-label-tl">Images (select one or more)*</label>
+                        <input type="file" name="Images" id="imageInput" class="form-control" multiple accept="image/*" required />
                         <small class="text-muted">You can select multiple images. First image will be the main picture.</small>
                         <div class="image-preview" id="imagePreview"></div>
+                        <span class="text-danger" id="imageError" style="display: none;">Please upload at least one image</span>
                     </div>
 
                     <div class="mt-5">
@@ -174,7 +413,8 @@
         </div>
     </section>
 
-    <footer class="tl-footer mt-5">
+    <!-- Footer -->
+    <footer class="tl-footer">
         <div class="container">
             <div class="row g-5">
                 <div class="col-lg-4 col-md-6">
@@ -209,18 +449,27 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Image preview
         document.getElementById('imageInput').addEventListener('change', function(e) {
-            const preview = document.getElementById('imagePreview');
-            preview.innerHTML = '';
-            Array.from(e.target.files).forEach(file => {
-                const reader = new FileReader();
-                reader.onload = function(ev) {
-                    const img = document.createElement('img');
-                    img.src = ev.target.result;
-                    preview.appendChild(img);
-                };
-                reader.readAsDataURL(file);
-            });
+        const preview = document.getElementById('imagePreview');
+        const imageError = document.getElementById('imageError');
+        preview.innerHTML = '';
+            
+        if (e.target.files.length === 0) {
+        imageError.style.display = 'block';
+        } else {
+        imageError.style.display = 'none';
+        }
+            
+        Array.from(e.target.files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+        const img = document.createElement('img');
+        img.src = ev.target.result;
+        preview.appendChild(img);
+        };
+        reader.readAsDataURL(file);
+        });
         });
     </script>
 </body>
