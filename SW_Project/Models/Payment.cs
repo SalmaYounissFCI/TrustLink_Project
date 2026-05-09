@@ -17,17 +17,29 @@ namespace SW_Project.Models
         [Required]
         public string UserId { get; set; }
 
+        [ForeignKey("UserId")]
+        public ApplicationUser User { get; set; }
+
         [Required]
         [Column(TypeName = "decimal(10,2)")]
         public decimal Amount { get; set; }
 
+        [StringLength(10)]
+        public string Currency { get; set; } = "usd";
+
         [Required]
-        [StringLength(50)]
-        public string PaymentMethod { get; set; }
+        [StringLength(100)]
+        public string StripeSessionId { get; set; }
+
+        [StringLength(100)]
+        public string? StripePaymentIntentId { get; set; }
+
 
         [Required]
         [StringLength(20)]
         public string Status { get; set; } = "Pending";
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
+
 
         public DateTime? PaidAt { get; set; }
     }

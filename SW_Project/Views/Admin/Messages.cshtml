@@ -1,0 +1,83 @@
+﻿@model List<SW_Project.Models.ContactMessage>
+@{
+    ViewData["Title"] = "Contact Messages — Admin";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mt-4 mb-4">
+        <h1>Contact Messages</h1>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <i class="bi bi-envelope"></i> All Messages
+        </div>
+        <div class="card-body">
+            @if (!Model.Any())
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-inbox" style="font-size: 3rem; color: var(--text-muted);"></i>
+                    <p class="mt-3 text-muted">No messages yet.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Subject</th>
+                                <th>Message</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var msg in Model)
+                            {
+                                <tr class="@(msg.IsRead ? "" : "table-warning")">
+                                    <td>@msg.SentAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td>@msg.FullName</td>
+                                    <td>@msg.Email</td>
+                                    <td>@msg.Subject</td>
+                                    <td style="max-width: 300px; overflow: auto;">@msg.Message</td>
+                                    <td>
+                                        @if (!msg.IsRead)
+                                        {
+                                            <span class="badge bg-warning">New</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Read</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (!msg.IsRead)
+                                        {
+                                            <form asp-action="MarkMessageAsRead" method="post" style="display: inline;">
+                                                <input type="hidden" name="id" value="@msg.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-check2"></i> Mark Read
+                                                </button>
+                                            </form>
+                                        }
+                                        <form asp-action="DeleteMessage" method="post" style="display: inline; margin-left: 5px;">
+                                            <input type="hidden" name="id" value="@msg.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure?')">
+                                                <i class="bi bi-trash"></i> Delete
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>

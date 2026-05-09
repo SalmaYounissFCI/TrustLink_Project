@@ -146,6 +146,50 @@
                 border-color: var(--gold);
                 color: var(--gold);
             }
+
+        .btn-pay-now {
+            background: var(--gold);
+            color: var(--navy);
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            transition: var(--transition);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-weight: 600;
+        }
+
+            .btn-pay-now:hover {
+                background: var(--navy);
+                color: var(--gold);
+                transform: translateY(-2px);
+            }
+
+        .payment-paid {
+            color: #16a34a;
+            background: rgba(74,222,128,0.12);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 100px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .payment-unpaid {
+            color: #e74c3c;
+            background: rgba(231,76,60,0.12);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 100px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
     </style>
 }
 
@@ -236,6 +280,22 @@
                                 $@contract.TotalPrice
                             </div>
 
+                            <!-- Payment Status -->
+                            <div class="mt-1">
+                                @if (contract.IsPaid)
+                                {
+                                    <span class="payment-paid">
+                                        <i class="bi bi-check-circle-fill"></i> Paid
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="payment-unpaid">
+                                        <i class="bi bi-exclamation-circle-fill"></i> Unpaid
+                                    </span>
+                                }
+                            </div>
+
                             <!-- Other Party -->
                             <div class="contract-meta">
                                 <i class="bi bi-person"></i>
@@ -257,12 +317,20 @@
                                     </span>
                                 }
                             </div>
-
                             <!-- Actions -->
-                            <div class="mt-3 d-flex gap-2">
+                            <div class="mt-3 d-flex gap-2 flex-wrap">
                                 <a href="/Contracts/Details/@contract.Id" class="btn-view">
                                     <i class="bi bi-eye"></i> View
                                 </a>
+
+                                @if (contract.Status == "Active" && !contract.IsPaid && contract.IsCurrentUserRenter)
+                                {
+                                    <a asp-controller="Payment" asp-action="Checkout" asp-route-contractId="@contract.Id"
+                                       class="btn-pay-now">
+                                        <i class="bi bi-credit-card"></i> Pay Now
+                                    </a>
+                                }
+
                                 @if (!string.IsNullOrEmpty(contract.PdfPath))
                                 {
                                     <a href="@contract.PdfPath" class="btn-download" download>

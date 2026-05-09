@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SW_Project.Models
 {
@@ -26,5 +27,9 @@ namespace SW_Project.Models
         public DateTime SentAt { get; set; } = DateTime.Now;
 
         public bool IsRead { get; set; } = false;
+        public string AdminId { get; set; }
+
+        [ForeignKey("AdminId")]
+        public ApplicationUser Admin { get; set; }
     }
 }
